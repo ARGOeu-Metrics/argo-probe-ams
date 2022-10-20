@@ -39,7 +39,8 @@ def utils(arguments):
     
     ams_msg = AmsMessage() 
     msg_array = []
-
+    
+    
     
     try:  
         for i in range(1, MSG_NUM):        
@@ -51,7 +52,6 @@ def utils(arguments):
             msg_orig.add(hash_obj.hexdigest())
 
             
-        
 
     except (AmsMessageException, TypeError, AttributeError):
         nagios.setCode(nagios.CRITICAL)
@@ -61,9 +61,10 @@ def utils(arguments):
     
     try:
         msgs = ams.publish(arguments.topic, msg_array, timeout=arguments.timeout)
-        
+
         ackids = []
         rcv_msg = set()
+
         for id, msg in ams.pull_sub(arguments.subscription, MSG_NUM - 1, True, timeout=arguments.timeout):     
             attr = msg.get_attr()
 
