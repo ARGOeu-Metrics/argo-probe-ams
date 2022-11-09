@@ -28,10 +28,9 @@ def utils(arguments):
             ams.delete_sub(arguments.subscription, timeout=arguments.timeout)
 
         ams.create_topic(arguments.topic, timeout=arguments.timeout)
-        print("arguments.topic 1: ", arguments.topic) # OBRISATI
         ams.create_sub(arguments.subscription, arguments.topic,
                        timeout=arguments.timeout)
-        print("arguments.subscription: ", arguments.subscription) # OBRISATI
+
 
     except AmsException as e:
         nagios.writeCriticalMessage(e.msg)
@@ -63,7 +62,7 @@ def utils(arguments):
     try:
         msgs = ams.publish(arguments.topic, msg_array,
                            timeout=arguments.timeout)
-        print("arguments.topic 2: ", arguments.topic) # OBRISATI
+
 
         ackids = []
         rcv_msg = set()
@@ -81,7 +80,6 @@ def utils(arguments):
                         timeout=arguments.timeout)
 
         ams.delete_topic(arguments.topic, timeout=arguments.timeout)
-        print("arguments.topic 3: ", arguments.topic) # OBRISATI
         ams.delete_sub(arguments.subscription, timeout=arguments.timeout)
 
     except AmsException as e:
@@ -109,9 +107,9 @@ def main():
     parser.add_argument('--project', type=str, required=True,
                         help='Project registered in AMS Service')
     parser.add_argument('--topic', type=str,
-                        default=("%032x" % random.getrandbits(128))[:16], help='Given topic')      # <== ovdje bi trebalo hash dodati
+                        default=("%032x" % random.getrandbits(128))[:16], help='Given topic')
     parser.add_argument('--subscription', type=str,
-                        default=("%032x" % random.getrandbits(128))[:16], help='Subscription name')  # <== ovdje bi trebalo hash dodati
+                        default=("%032x" % random.getrandbits(128))[:16], help='Subscription name')
     parser.add_argument('-t', dest='timeout', type=int,
                         default=TIMEOUT, help='Timeout')
     cmd_options = parser.parse_args()
