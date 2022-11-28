@@ -20,20 +20,17 @@ This package includes probes for ARGO AMS component.
 %setup -q
 
 %build
-%{__python} setup.py build
+%{py3_build}
 
 %install
-rm -rf %{buildroot}
-%{__python} setup.py install --skip-build --root %{buildroot} --record=INSTALLED_FILES
-install -d -m 755 %{buildroot}/%{dir}
-install -d -m 755 %{buildroot}/%{python_sitelib}/argo_probe_ams
+%{py3_install "--record=INSTALLED_FILES" }
 
 %clean
 rm -rf %{buildroot}
 
 %files -f INSTALLED_FILES
 %defattr(-,root,root,-)
-%{python_sitelib}/argo_probe_ams
+%{python3_sitelib}/argo_probe_ams
 %{dir}
 
 
