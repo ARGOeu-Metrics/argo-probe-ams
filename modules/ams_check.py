@@ -31,6 +31,7 @@ def utils(arguments):
         ams.create_sub(arguments.subscription, arguments.topic,
                        timeout=arguments.timeout)
 
+
     except AmsException as e:
         nagios.writeCriticalMessage(e.msg)
         nagios.setCode(nagios.CRITICAL)
@@ -61,6 +62,7 @@ def utils(arguments):
     try:
         msgs = ams.publish(arguments.topic, msg_array,
                            timeout=arguments.timeout)
+
 
         ackids = []
         rcv_msg = set()
@@ -96,6 +98,7 @@ def utils(arguments):
 
 def main():
     TIMEOUT = 180
+    random_bits = random.getrandbits(128)
 
     parser = ArgumentParser(description="Nagios sensor for AMS")
     parser.add_argument('-H', dest='host', type=str,
@@ -104,9 +107,9 @@ def main():
     parser.add_argument('--project', type=str, required=True,
                         help='Project registered in AMS Service')
     parser.add_argument('--topic', type=str,
-                        default='nagios_sensor_topic', help='Given topic')
+                        default=("%032x" % random.getrandbits(128))[:16], help='Given topic')
     parser.add_argument('--subscription', type=str,
-                        default='nagios_sensor_sub', help='Subscription name')
+                        default=("%032x" % random.getrandbits(128))[:16], help='Subscription name')
     parser.add_argument('-t', dest='timeout', type=int,
                         default=TIMEOUT, help='Timeout')
     cmd_options = parser.parse_args()
