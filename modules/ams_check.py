@@ -14,13 +14,11 @@ msg_orig = set()
 
 
 def utils(arguments):
-
     nagios = NagiosResponse("All messages received correctly.")
     ams = ArgoMessagingService(
         endpoint=arguments.host, token=arguments.token, project=arguments.project)
 
     try:
-
         if ams.has_topic(arguments.topic, timeout=arguments.timeout):
             ams.delete_topic(arguments.topic, timeout=arguments.timeout)
 
@@ -30,7 +28,6 @@ def utils(arguments):
         ams.create_topic(arguments.topic, timeout=arguments.timeout)
         ams.create_sub(arguments.subscription, arguments.topic,
                        timeout=arguments.timeout)
-
 
     except AmsException as e:
         nagios.writeCriticalMessage(e.msg)
@@ -95,7 +92,6 @@ def utils(arguments):
     print(nagios.getMsg())
     raise SystemExit(nagios.getCode())
 
-
 def main():
     TIMEOUT = 180
     random_bits = random.getrandbits(128)
@@ -115,7 +111,6 @@ def main():
     cmd_options = parser.parse_args()
 
     utils(arguments=cmd_options)
-
 
 if __name__ == "__main__":
     main()
