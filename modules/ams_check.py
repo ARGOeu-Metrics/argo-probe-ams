@@ -1,36 +1,33 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
-import random, string, hashlib
+import random
+import string
+import hashlib
 
 from argparse import ArgumentParser
-from argo_ams_library import ArgoMessagingService, AmsMessage, AmsException
-from NagiosResponse import NagiosResponse
+from argo_ams_library import ArgoMessagingService, AmsMessage, AmsException, AmsMessageException
+from argo_probe_ams.NagiosResponse import NagiosResponse
 
-def main():
-    MSG_NUM = 100
-    MSG_SIZE = 500
-    TIMEOUT = 180
+MSG_NUM = 100
+MSG_SIZE = 500
+msg_orig = set()
 
-    parser = ArgumentParser(description="Nagios sensor for AMS")
-    parser.add_argument('-H', dest='host', type=str, default='messaging-devel.argo.grnet.gr', help='FQDN of AMS Service')
-    parser.add_argument('--token', type=str, required=True, help='Given token')
-    parser.add_argument('--project', type=str, required=True, help='Project registered in AMS Service')
-    parser.add_argument('--topic', type=str, default='nagios_sensor_topic', help='Given topic')
-    parser.add_argument('--subscription', type=str, default='nagios_sensor_sub', help='Subscription name')
-    parser.add_argument('-t', dest='timeout', type=int, default=TIMEOUT, help='Timeout')
-    cmd_options = parser.parse_args()
 
+def utils(arguments):
     nagios = NagiosResponse("All messages received correctly.")
-    ams = ArgoMessagingService(endpoint=cmd_options.host, token=cmd_options.token, project=cmd_options.project)
+    ams = ArgoMessagingService(
+        endpoint=arguments.host, token=arguments.token, project=arguments.project)
+
     try:
-        if ams.has_topic(cmd_options.topic, timeout=cmd_options.timeout):
-            ams.delete_topic(cmd_options.topic, timeout=cmd_options.timeout)
+        if ams.has_topic(arguments.topic, timeout=arguments.timeout):
+            ams.delete_topic(arguments.topic, timeout=arguments.timeout)
 
-        if ams.has_sub(cmd_options.subscription, timeout=cmd_options.timeout):
-            ams.delete_sub(cmd_options.subscription, timeout=cmd_options.timeout)
+        if ams.has_sub(arguments.subscription, timeout=arguments.timeout):
+            ams.delete_sub(arguments.subscription, timeout=arguments.timeout)
 
-        ams.create_topic(cmd_options.topic, timeout=cmd_options.timeout)
-        ams.create_sub(cmd_options.subscription, cmd_options.topic, timeout=cmd_options.timeout)
+        ams.create_topic(arguments.topic, timeout=arguments.timeout)
+        ams.create_sub(arguments.subscription, arguments.topic,
+                       timeout=arguments.timeout)
 
     except AmsException as e:
         nagios.writeCriticalMessage(e.msg)
@@ -39,33 +36,48 @@ def main():
         raise SystemExit(nagios.getCode())
 
     ams_msg = AmsMessage()
-    msg_orig = set()
     msg_array = []
 
-    for i in range(1, MSG_NUM):
-        msg_txt = ''.join(random.choice(string.ascii_letters + string.digits) for i in range(MSG_SIZE))
-        attr_name = ''.join(random.choice(string.ascii_letters + string.digits) for i in range(4))
-        attr_value = ''.join(random.choice(string.ascii_letters + string.digits) for i in range(8))
-        msg_array.append(ams_msg(data=msg_txt, attributes={attr_name: attr_value}))
-        hash_obj = hashlib.md5(msg_txt + attr_name + attr_value)
-        msg_orig.add(hash_obj.hexdigest())
+    try:
+        for i in range(1, MSG_NUM):
+            msg_txt = ''.join(random.choice(
+                string.ascii_letters + string.digits) for i in range(MSG_SIZE))
+            attr_name = ''.join(random.choice(
+                string.ascii_letters + string.digits) for i in range(4))
+            attr_value = ''.join(random.choice(
+                string.ascii_letters + string.digits) for i in range(8))
+            msg_array.append(
+                ams_msg(data=msg_txt, attributes={attr_name: attr_value}))
+            hash_obj = hashlib.md5((msg_txt + attr_name + attr_value).encode())
+            msg_orig.add(hash_obj.hexdigest())
+
+    except (AmsMessageException, TypeError, AttributeError):
+        nagios.setCode(nagios.CRITICAL)
+        print(nagios.getMsg())
+        raise SystemExit(2)
 
     try:
-        msgs = ams.publish(cmd_options.topic, msg_array, timeout=cmd_options.timeout)
+        msgs = ams.publish(arguments.topic, msg_array,
+                           timeout=arguments.timeout)
+
 
         ackids = []
         rcv_msg = set()
-        for id, msg in ams.pull_sub(cmd_options.subscription, MSG_NUM - 1, True, timeout=cmd_options.timeout):
+
+        for id, msg in ams.pull_sub(arguments.subscription, MSG_NUM - 1, True, timeout=arguments.timeout):
             attr = msg.get_attr()
 
-            hash_obj = hashlib.md5(msg.get_data() + attr.keys()[0] + attr.values()[0])
+            hash_obj = hashlib.md5((msg.get_data().decode(
+                'utf-8') + list(attr.keys())[0] + list(attr.values())[0]).encode())
             rcv_msg.add(hash_obj.hexdigest())
+            ackids.append(id)
 
         if ackids:
-            ams.ack_sub(cmd_options.subscription, ackids, timeout=cmd_options.timeout)
+            ams.ack_sub(arguments.subscription, ackids,
+                        timeout=arguments.timeout)
 
-        ams.delete_topic(cmd_options.topic, timeout=cmd_options.timeout)
-        ams.delete_sub(cmd_options.subscription, timeout=cmd_options.timeout)
+        ams.delete_topic(arguments.topic, timeout=arguments.timeout)
+        ams.delete_sub(arguments.subscription, timeout=arguments.timeout)
 
     except AmsException as e:
         nagios.writeCriticalMessage(e.msg)
@@ -80,6 +92,25 @@ def main():
     print(nagios.getMsg())
     raise SystemExit(nagios.getCode())
 
+def main():
+    TIMEOUT = 180
+    random_bits = random.getrandbits(128)
+
+    parser = ArgumentParser(description="Nagios sensor for AMS")
+    parser.add_argument('-H', dest='host', type=str,
+                        default='messaging-devel.argo.grnet.gr', help='FQDN of AMS Service')
+    parser.add_argument('--token', type=str, required=True, help='Given token')
+    parser.add_argument('--project', type=str, required=True,
+                        help='Project registered in AMS Service')
+    parser.add_argument('--topic', type=str,
+                        default=("%032x" % random.getrandbits(128))[:16], help='Given topic')
+    parser.add_argument('--subscription', type=str,
+                        default=("%032x" % random.getrandbits(128))[:16], help='Subscription name')
+    parser.add_argument('-t', dest='timeout', type=int,
+                        default=TIMEOUT, help='Timeout')
+    cmd_options = parser.parse_args()
+
+    utils(arguments=cmd_options)
 
 if __name__ == "__main__":
     main()
