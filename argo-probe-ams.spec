@@ -2,7 +2,7 @@
 
 Name: argo-probe-ams
 Summary: Probes for ARGO AMS.
-Version: 0.1.0
+Version: 0.1.1
 Release: 1%{?dist}
 License: ASL 2.0
 Source0: %{name}-%{version}.tar.gz
