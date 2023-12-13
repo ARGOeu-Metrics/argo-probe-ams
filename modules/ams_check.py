@@ -17,26 +17,42 @@ MSG_SIZE = 500
 temp_file_path = os.path.join("/var/spool/argo/probes/argo-probe-ams", "ams_cleanup.json") 
                                                                                                      
 def write_to_temp_file(host, topic, subscription):
-    data = {
-        "host": host,
-        "topic": topic,
-        "subscription": subscription
-    }              
-    with open(temp_file_path, 'w') as f:
-        json.dump(data, f)
-
-def cleanup_from_temp_file(ams, current_host):       
     if os.path.exists(temp_file_path):
         with open(temp_file_path, 'r') as f:
             data = json.load(f)
-            hashed_host = data["host"]
-            topic = data["topic"]
-            subscription = data["subscription"]
-           
-            if ams.has_topic(topic):
-                ams.delete_topic(topic)
-            if ams.has_sub(subscription):
-                ams.delete_sub(subscription)
+    else:
+        data = {}
+
+    data[host] = {
+        "topic": topic,
+        "subscription": subscription
+    }
+
+    with open(temp_file_path, 'w') as f:
+        json.dump(data, f)
+        
+
+def cleanup_from_temp_file(ams, current_host):       
+    is_deleted = list()
+    
+    if os.path.exists(temp_file_path):
+        with open(temp_file_path, 'r') as f:
+            data = json.load(f)
+               
+        for host, info in list(data.items()): 
+            if host == current_host:                
+                topic = info["topic"]
+                subscription = info["subscription"]
+                
+                if ams.has_topic(topic):
+                    ams.delete_topic(topic)
+                    is_deleted.append(True)
+                    
+                if ams.has_sub(subscription):
+                    ams.delete_sub(subscription)
+                    is_deleted.append(True)
+
+    return is_deleted
 
 
 def create_msg(nagios, arguments):
@@ -102,7 +118,7 @@ def utils(arguments):
         ams = ArgoMessagingService(
             endpoint=arguments.host, token=arguments.token, project=arguments.project)
 
-        cleanup_from_temp_file(ams, arguments.host)
+        is_deleted = cleanup_from_temp_file(ams, arguments.host)
 
         if ams.has_topic(arguments.topic, timeout=arguments.timeout):
             ams.delete_topic(arguments.topic, timeout=arguments.timeout)
@@ -124,13 +140,19 @@ def utils(arguments):
             nagios.writeCriticalMessage("Messages received incorrectly.")
             nagios.setCode(nagios.CRITICAL)
 
-        if os.path.exists(temp_file_path):
-            os.remove(temp_file_path)
+        if len(is_deleted) > 1 and is_deleted[0] == True and is_deleted[1] == True:
+            if os.path.exists(temp_file_path):
+                with open(temp_file_path, 'r') as f:
+                    data = json.load(f)
+                    del data[arguments.host]
+                    
+                with open(temp_file_path, 'w') as f:
+                    json.dump(data, f)
 
         print(nagios.getMsg())
         raise SystemExit(nagios.getCode())
 
-    except (AmsException, Exception) as e:
+    except (AmsException) as e:
         write_to_temp_file(arguments.host, arguments.topic, arguments.subscription)
         nagios.setCode(nagios.CRITICAL)
         nagios.writeCriticalMessage(str(e))
