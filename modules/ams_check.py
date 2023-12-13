@@ -15,16 +15,16 @@ MSG_SIZE = 500
 
 
 temp_file_path = os.path.join("/var/spool/argo/probes/argo-probe-ams", "ams_cleanup.txt")  
-                                                                              
-def write_to_temp_file(host, topic, subscription):                     
+                                                                                  
+def write_to_temp_file(host, topic, subscription):                      
     with open(temp_file_path, 'w') as f:
         f.write(f"{host}\n{topic}\n{subscription}\n")
 
-def cleanup_from_temp_file(ams, current_host):
+def cleanup_from_temp_file(ams, current_host):                 
     if os.path.exists(temp_file_path):
         with open(temp_file_path, 'r') as f:
             lines = f.readlines()
-            hashed_host = lines[0].strip()
+            #hashed_host = lines[0].strip()
             topic = lines[1].strip()
             subscription = lines[2].strip()
            
@@ -34,7 +34,7 @@ def cleanup_from_temp_file(ams, current_host):
                 ams.delete_sub(subscription)
 
 
-def create_msg(nagios):
+def create_msg(nagios, arguments):
     ams_msg = AmsMessage()
     msg_orig = set()
     msg_array = []
@@ -52,7 +52,8 @@ def create_msg(nagios):
             hash_obj = hashlib.md5((msg_txt + attr_name + attr_value).encode())
             msg_orig.add(hash_obj.hexdigest())
 
-    except (AmsMessageException, TypeError, AttributeError):
+    except (AmsMessageException, TypeError, AttributeError, Exception):
+        write_to_temp_file(arguments.host, arguments.topic, arguments.subscription)
         nagios.setCode(nagios.CRITICAL)
         print(nagios.getMsg())
         raise SystemExit(2)
@@ -81,8 +82,9 @@ def publish_msgs(ams, arguments, msg_array, nagios):
 
         return rcv_msg
 
-    except AmsException as e:
-        nagios.writeCriticalMessage(e.msg)
+    except (AmsException, TypeError, AttributeError, Exception) as e:
+        write_to_temp_file(arguments.host, arguments.topic, arguments.subscription)
+        nagios.writeCriticalMessage(str(e))
         nagios.setCode(nagios.CRITICAL)
         print(nagios.getMsg())
         raise SystemExit(nagios.getCode())
@@ -106,10 +108,8 @@ def utils(arguments):
         ams.create_topic(arguments.topic, timeout=arguments.timeout)
         ams.create_sub(arguments.subscription, arguments.topic,
                        timeout=arguments.timeout)
-        
-        write_to_temp_file(arguments.host, arguments.topic, arguments.subscription)
-               
-        msg_array, msg_orig = create_msg(nagios)
+                   
+        msg_array, msg_orig = create_msg(nagios, arguments)
         rcv_msg = publish_msgs(ams, arguments, msg_array, nagios)
 
         ams.delete_topic(arguments.topic, timeout=arguments.timeout)
@@ -122,9 +122,10 @@ def utils(arguments):
         print(nagios.getMsg())
         raise SystemExit(nagios.getCode())
 
-    except AmsException as e:
+    except (AmsException, Exception) as e:
+        write_to_temp_file(arguments.host, arguments.topic, arguments.subscription)
         nagios.setCode(nagios.CRITICAL)
-        nagios.writeCriticalMessage(e.msg)
+        nagios.writeCriticalMessage(str(e))
         print(nagios.getMsg())
         raise SystemExit(nagios.getCode())
     
