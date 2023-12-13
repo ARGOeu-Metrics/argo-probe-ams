@@ -119,6 +119,8 @@ def utils(arguments):
             nagios.writeCriticalMessage("Messages received incorrectly.")
             nagios.setCode(nagios.CRITICAL)
 
+        os.remove(temp_file_path)
+
         print(nagios.getMsg())
         raise SystemExit(nagios.getCode())
 
