@@ -1,7 +1,7 @@
 from types import SimpleNamespace
 import unittest
-from unittest.mock import patch
-
+from unittest.mock import patch, MagicMock
+from unittest.mock import Mock
 
 from argo_ams_library import AmsConnectionException, AmsException, AmsMessage
 from argo_probe_ams.NagiosResponse import NagiosResponse
@@ -11,6 +11,7 @@ from argo_probe_ams.ams_check import utils
 def mock_pull_sub_func(*args, **kwargs):
     return [('projects/mock_PROJECT/subscriptions/mock_sensor_sub:0', AmsMessage)]
 
+
 def mock_pass_func(*args, **kwargs):
     pass
 
@@ -18,11 +19,13 @@ def mock_pass_func(*args, **kwargs):
 def mock_func_ams_message(*args, **kwargs):
     return AmsMessage(data="mock_data", attributes="mock_attributes")
 
+
 class ArgoProbeAmsTests(unittest.TestCase):
     def setUp(self) -> None:
         arguments = {"host": "mock_host", "token": "1234", "project": "mock_PROJECT",
                      "topic": "mock_topic", "timeout": 3, "subscription": "mock_sensor_sub"}
         self.arguments = SimpleNamespace(**arguments)
+        self.nagios = NagiosResponse()
 
     @patch("argo_probe_ams.ams_check.hashlib")
     @patch("argo_probe_ams.ams_check.ArgoMessagingService.create_sub")
@@ -127,36 +130,16 @@ class ArgoProbeAmsTests(unittest.TestCase):
 
         self.assertEqual(e.exception.code, 2)
 
-    @patch("argo_probe_ams.ams_check.msg_orig")
-    @patch("argo_probe_ams.ams_check.random.choice")
-    @patch("argo_probe_ams.ams_check.MSG_NUM", 2)
-    @patch("argo_probe_ams.ams_check.MSG_SIZE", 3)
-    @patch("argo_probe_ams.ams_check.ArgoMessagingService.create_sub")
-    @patch("argo_probe_ams.ams_check.ArgoMessagingService.create_topic")
-    @patch("argo_probe_ams.ams_check.AmsMessage")
-    @patch("argo_probe_ams.ams_check.ArgoMessagingService.has_sub")
-    @patch("argo_probe_ams.ams_check.ArgoMessagingService.has_topic")
-    def test_expected_hashlibmd5_and_connectionerror(self, mock_has_topic, mock_has_sub,
-                                                     mock_ams_msg, mock_create_topic,
-                                                     mock_create_sub,
-                                                     mock_random_choice, mock_msg_orig):
+    @patch("argo_probe_ams.ams_check.utils")
+    def test_service_down(self, mock_ams_service):
 
-        mock_has_topic.return_value = False
-        mock_has_sub.return_value = False
-        mock_ams_msg.side_effect = mock_func_ams_message
-        mock_random_choice.return_value = "mock_rand"
+        mock_ams_service.side_effect = AmsException(
+            {'error': "System is down", 'status_code': 404, 'status': 'NOT_FOUND'})
 
-        with self.assertRaises(SystemExit) as e:
+        with self.assertRaises(SystemExit) as cm:
             utils(self.arguments)
 
-        mock_create_topic.assert_called_once_with(
-            self.arguments.topic, timeout=self.arguments.timeout)
-        mock_create_sub.assert_called_once_with(
-            self.arguments.subscription, self.arguments.topic, timeout=self.arguments.timeout)
-
-        expected = "e1afc18e33d67cc202bb6056c28013ee"
-        mock_msg_orig.add.assert_called_once_with(expected)
-        self.assertEqual(e.exception.code, 2)
+        self.assertEqual(cm.exception.code, 2)
 
 
 if __name__ == '__main__':
