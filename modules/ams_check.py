@@ -13,10 +13,18 @@ MSG_SIZE = 500
 msg_orig = set()
 
 
-def utils(arguments):
+def gen_rand_str(length=16):
+    characters = string.ascii_lowercase + string.digits
+    random_string = ''.join(random.choices(characters, k=length))
+    return random_string
+
+
+def run(arguments):
     nagios = NagiosResponse("All messages received correctly.")
-    ams = ArgoMessagingService(
-        endpoint=arguments.host, token=arguments.token, project=arguments.project)
+    ams = ArgoMessagingService(endpoint=arguments.host, token=arguments.token,
+                               project=arguments.project)
+
+    import ipdb; ipdb.set_trace()
 
     try:
         if ams.has_topic(arguments.topic, timeout=arguments.timeout):
@@ -60,7 +68,6 @@ def utils(arguments):
         msgs = ams.publish(arguments.topic, msg_array,
                            timeout=arguments.timeout)
 
-
         ackids = []
         rcv_msg = set()
 
@@ -92,9 +99,10 @@ def utils(arguments):
     print(nagios.getMsg())
     raise SystemExit(nagios.getCode())
 
+
 def main():
     TIMEOUT = 180
-    random_bits = random.getrandbits(128)
+    rand_str = gen_rand_str()
 
     parser = ArgumentParser(description="Nagios sensor for AMS")
     parser.add_argument('-H', dest='host', type=str,
@@ -103,14 +111,18 @@ def main():
     parser.add_argument('--project', type=str, required=True,
                         help='Project registered in AMS Service')
     parser.add_argument('--topic', type=str,
-                        default=("%032x" % random.getrandbits(128))[:16], help='Given topic')
+                        default=f"amsprobe-topic_{rand_str}",
+                        help='Topic name')
     parser.add_argument('--subscription', type=str,
-                        default=("%032x" % random.getrandbits(128))[:16], help='Subscription name')
+                        default=f"amsprobe-subscription_{rand_str}",
+                        help='Subscription name')
     parser.add_argument('-t', dest='timeout', type=int,
                         default=TIMEOUT, help='Timeout')
     cmd_options = parser.parse_args()
 
-    utils(arguments=cmd_options)
+    import ipdb; ipdb.set_trace()
+
+    run(arguments=cmd_options)
 
 if __name__ == "__main__":
     main()
