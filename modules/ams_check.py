@@ -19,23 +19,28 @@ def gen_rand_str(length=16):
     return random_string
 
 
+def create_resources(ams, arguments):
+    topic = arguments.topic
+    subscription = arguments.subscription
+    timeout = arguments.timeout
+
+    if ams.has_topic(topic, timeout=timeout):
+        ams.delete_topic(topic, timeout=timeout)
+
+    if ams.has_sub(subscription, timeout=timeout):
+        ams.delete_sub(subscription, timeout=timeout)
+
+    ams.create_topic(topic, timeout=timeout)
+    ams.create_sub(subscription, topic, timeout=timeout)
+
+
 def run(arguments):
     nagios = NagiosResponse("All messages received correctly.")
     ams = ArgoMessagingService(endpoint=arguments.host, token=arguments.token,
                                project=arguments.project)
 
-    import ipdb; ipdb.set_trace()
-
     try:
-        if ams.has_topic(arguments.topic, timeout=arguments.timeout):
-            ams.delete_topic(arguments.topic, timeout=arguments.timeout)
-
-        if ams.has_sub(arguments.subscription, timeout=arguments.timeout):
-            ams.delete_sub(arguments.subscription, timeout=arguments.timeout)
-
-        ams.create_topic(arguments.topic, timeout=arguments.timeout)
-        ams.create_sub(arguments.subscription, arguments.topic,
-                       timeout=arguments.timeout)
+        create_resources(ams, arguments)
 
     except AmsException as e:
         nagios.writeCriticalMessage(e.msg)

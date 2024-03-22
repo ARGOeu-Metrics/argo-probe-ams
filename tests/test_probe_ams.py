@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 from argo_ams_library import AmsConnectionException, AmsException, AmsMessage
 from argo_probe_ams.NagiosResponse import NagiosResponse
-from argo_probe_ams.ams_check import utils
+from argo_probe_ams.ams_check import run
 
 
 def mock_pull_sub_func(*args, **kwargs):
@@ -52,7 +52,7 @@ class ArgoProbeAmsTests(unittest.TestCase):
         mock_hashlib.return_value = "mock_rand"
 
         with self.assertRaises(SystemExit) as e:
-            utils(self.arguments)
+            run(self.arguments)
 
         mock_create_topic.assert_called_once_with(
             self.arguments.topic, timeout=self.arguments.timeout)
@@ -67,7 +67,7 @@ class ArgoProbeAmsTests(unittest.TestCase):
             "failed connection", "http_mock_get")
 
         with self.assertRaises(SystemExit) as e:
-            utils(self.arguments)
+            run(self.arguments)
 
         mock_has_topic.assert_called_once()
         self.assertEqual(e.exception.code, 2)
@@ -91,7 +91,7 @@ class ArgoProbeAmsTests(unittest.TestCase):
         mock_publish.return_value = False
 
         with self.assertRaises(SystemExit) as e:
-            utils(self.arguments)
+            run(self.arguments)
 
         mock_create_topic.assert_called_once_with(
             self.arguments.topic, timeout=self.arguments.timeout)
@@ -118,7 +118,7 @@ class ArgoProbeAmsTests(unittest.TestCase):
         mock_ams_msg.return_value = "mock_ams_msg"
 
         with self.assertRaises(SystemExit) as e:
-            utils(self.arguments)
+            run(self.arguments)
 
         mock_create_topic.assert_called_once_with(
             self.arguments.topic, timeout=self.arguments.timeout)
@@ -147,7 +147,7 @@ class ArgoProbeAmsTests(unittest.TestCase):
         mock_random_choice.return_value = "mock_rand"
 
         with self.assertRaises(SystemExit) as e:
-            utils(self.arguments)
+            run(self.arguments)
 
         mock_create_topic.assert_called_once_with(
             self.arguments.topic, timeout=self.arguments.timeout)
