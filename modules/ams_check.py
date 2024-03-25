@@ -34,6 +34,10 @@ def create_resources(ams, arguments):
     ams.create_sub(subscription, topic, timeout=timeout)
 
 
+def record_resource(host, topic, subscription):
+    pass
+
+
 def run(arguments):
     nagios = NagiosResponse("All messages received correctly.")
     ams = ArgoMessagingService(endpoint=arguments.host, token=arguments.token,
@@ -43,6 +47,7 @@ def run(arguments):
         create_resources(ams, arguments)
 
     except AmsException as e:
+        record_resource(arguments.host, arguments.topic, arguments.subscription)
         nagios.writeCriticalMessage(e.msg)
         nagios.setCode(nagios.CRITICAL)
         print(nagios.getMsg())

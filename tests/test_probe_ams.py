@@ -6,6 +6,7 @@ from unittest.mock import Mock
 from argo_ams_library import AmsConnectionException, AmsException, AmsMessage, ArgoMessagingService
 from argo_probe_ams.NagiosResponse import NagiosResponse
 from argo_probe_ams.ams_check import run
+from argo_probe_ams.ams_check import record_resource
 
 
 def mock_pull_sub_func(*args, **kwargs):
@@ -31,13 +32,15 @@ class ArgoProbeAmsTests(unittest.TestCase):
         }
         self.arguments = Mock(**arguments)
 
+    @patch('argo_probe_ams.ams_check.record_resource')
     @patch.object(ArgoMessagingService, 'has_topic')
-    def test_connectionerror_on_hastopic(self, m_hastopic):
+    def test_connectionerror_on_hastopic(self, m_hastopic, m_recordresource):
         m_hastopic.side_effect = [AmsConnectionException("mocked connection error", "mock_has_topic")]
 
         with self.assertRaises(SystemExit) as exc:
             run(self.arguments)
         self.assertEqual(exc.exception.code, 2)
+        m_recordresource.assert_called_with('mock_host', 'mock_topic', 'mock_sensor_sub')
 
 
 if __name__ == '__main__':
