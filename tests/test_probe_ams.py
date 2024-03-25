@@ -3,7 +3,7 @@ from unittest.mock import patch
 from unittest.mock import Mock
 
 
-from argo_ams_library import AmsConnectionException, AmsException, AmsMessage
+from argo_ams_library import AmsConnectionException, AmsException, AmsMessage, ArgoMessagingService
 from argo_probe_ams.NagiosResponse import NagiosResponse
 from argo_probe_ams.ams_check import run
 
@@ -31,8 +31,13 @@ class ArgoProbeAmsTests(unittest.TestCase):
         }
         self.arguments = Mock(**arguments)
 
-    def test_connectionerror_on_hastopic(self):
-        run(self.arguments)
+    @patch.object(ArgoMessagingService, 'has_topic')
+    def test_connectionerror_on_hastopic(self, m_hastopic):
+        m_hastopic.side_effect = [AmsConnectionException("mocked connection error", "mock_has_topic")]
+
+        with self.assertRaises(SystemExit) as exc:
+            run(self.arguments)
+        self.assertEqual(exc.exception.code, 2)
 
 
 if __name__ == '__main__':
