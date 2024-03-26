@@ -42,6 +42,11 @@ class ArgoProbeAmsTests(unittest.TestCase):
         self.assertEqual(exc.exception.code, 2)
         m_recordresource.assert_called_with('mock_host', 'mock_topic', 'mock_sensor_sub')
 
+    def test_failed_statewrite(self):
+        with self.assertRaises(SystemExit) as exc:
+            run(self.arguments)
+        self.assertEqual(exc.exception.code, 3)
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -8,6 +8,10 @@ from argparse import ArgumentParser
 from argo_ams_library import ArgoMessagingService, AmsMessage, AmsException, AmsMessageException
 from argo_probe_ams.NagiosResponse import NagiosResponse
 
+
+STATE_FILE = "/var/spool/argo/argo-probe-ams/state.json"
+
+
 MSG_NUM = 100
 MSG_SIZE = 500
 msg_orig = set()
@@ -35,7 +39,9 @@ def create_resources(ams, arguments):
 
 
 def record_resource(host, topic, subscription):
-    pass
+    res = dict(host=host, topic=topic, subscription=subscription)
+    with open(STATE_FILE, 'a') as fp:
+        json.dump(res, fp, indent=4)
 
 
 def run(arguments):
@@ -44,12 +50,18 @@ def run(arguments):
                                project=arguments.project)
 
     try:
+        record_resource(arguments.host, arguments.topic, arguments.subscription)
         create_resources(ams, arguments)
 
-    except AmsException as e:
-        record_resource(arguments.host, arguments.topic, arguments.subscription)
-        nagios.writeCriticalMessage(e.msg)
+    except AmsException as exc:
+        nagios.writeCriticalMessage(exc.msg)
         nagios.setCode(nagios.CRITICAL)
+        print(nagios.getMsg())
+        raise SystemExit(nagios.getCode())
+
+    except OSError as exc:
+        nagios.writeUnknownMessage(f"{STATE_FILE} - {repr(exc)}")
+        nagios.setCode(nagios.UNKNOWN)
         print(nagios.getMsg())
         raise SystemExit(nagios.getCode())
 
@@ -129,8 +141,6 @@ def main():
     parser.add_argument('-t', dest='timeout', type=int,
                         default=TIMEOUT, help='Timeout')
     cmd_options = parser.parse_args()
-
-    import ipdb; ipdb.set_trace()
 
     run(arguments=cmd_options)
 
