@@ -2,6 +2,7 @@ class NagiosResponse(object):
     _msgBagWarning = []
     _msgBagCritical = []
     _msgBagOk = []
+    _msgBagUnknown = []
     _okMsg = ""
     _code = None
 
@@ -23,6 +24,9 @@ class NagiosResponse(object):
     def writeCriticalMessage(self, msg):
         self._msgBagCritical.append(msg)
 
+    def writeUnknownMessage(self, msg):
+        self._msgBagUnknown.append(msg)
+
     def setCode(self, code):
         self._code = code
 
@@ -37,9 +41,9 @@ class NagiosResponse(object):
         elif self._code == self.OK:
             msg = self._okMsg if self._okMsg else self._toString(self._msgBagOk)
             return "OK - " + msg
-        else:
-            return "UNKNOWN!"
+        elif self._code == self.UNKNOWN:
+            msg = self._toString(self._msgBagUnknown)
+            return "UNKNOWN - " + msg
 
     def _toString(self, msgArray):
         return ' / '.join(msgArray)
-
