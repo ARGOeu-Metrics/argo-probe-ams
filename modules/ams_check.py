@@ -3,6 +3,7 @@
 import random
 import string
 import hashlib
+import json
 
 from argparse import ArgumentParser
 from argo_ams_library import ArgoMessagingService, AmsMessage, AmsException, AmsMessageException

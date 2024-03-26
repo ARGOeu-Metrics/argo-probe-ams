@@ -7,6 +7,7 @@ from argo_ams_library import AmsConnectionException, AmsException, AmsMessage, A
 from argo_probe_ams.NagiosResponse import NagiosResponse
 from argo_probe_ams.ams_check import run
 from argo_probe_ams.ams_check import record_resource
+from argo_probe_ams.ams_check import create_resources
 
 
 def mock_pull_sub_func(*args, **kwargs):
@@ -42,7 +43,9 @@ class ArgoProbeAmsTests(unittest.TestCase):
         self.assertEqual(exc.exception.code, 2)
         m_recordresource.assert_called_with('mock_host', 'mock_topic', 'mock_sensor_sub')
 
-    def test_failed_statewrite(self):
+    @patch('argo_probe_ams.ams_check.open')
+    def test_failed_statewrite(self, m_open):
+        m_open.side_effect = PermissionError('mocked perm denied')
         with self.assertRaises(SystemExit) as exc:
             run(self.arguments)
         self.assertEqual(exc.exception.code, 3)
