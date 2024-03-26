@@ -41,7 +41,7 @@ def create_resources(ams, arguments):
 
 def record_resource(host, topic, subscription):
     res = dict(host=host, topic=topic, subscription=subscription)
-    with open(STATE_FILE, 'a') as fp:
+    with open(STATE_FILE, 'w') as fp:
         json.dump(res, fp, indent=4)
 
 
@@ -49,6 +49,7 @@ def run(arguments):
     nagios = NagiosResponse("All messages received correctly.")
     ams = ArgoMessagingService(endpoint=arguments.host, token=arguments.token,
                                project=arguments.project)
+
 
     try:
         record_resource(arguments.host, arguments.topic, arguments.subscription)
@@ -87,6 +88,7 @@ def run(arguments):
         print(nagios.getMsg())
         raise SystemExit(2)
 
+
     try:
         msgs = ams.publish(arguments.topic, msg_array,
                            timeout=arguments.timeout)
@@ -118,6 +120,7 @@ def run(arguments):
     if msg_orig != rcv_msg:
         nagios.writeCriticalMessage("Messages received incorrectly.")
         nagios.setCode(nagios.CRITICAL)
+
 
     print(nagios.getMsg())
     raise SystemExit(nagios.getCode())

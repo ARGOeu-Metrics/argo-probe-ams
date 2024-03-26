@@ -1,6 +1,7 @@
 import unittest
 from unittest.mock import patch
 from unittest.mock import Mock
+from unittest.mock import MagicMock
 
 
 from argo_ams_library import AmsConnectionException, AmsException, AmsMessage, ArgoMessagingService
@@ -8,6 +9,7 @@ from argo_probe_ams.NagiosResponse import NagiosResponse
 from argo_probe_ams.ams_check import run
 from argo_probe_ams.ams_check import record_resource
 from argo_probe_ams.ams_check import create_resources
+from argo_probe_ams.ams_check import STATE_FILE
 
 
 def mock_pull_sub_func(*args, **kwargs):
@@ -49,6 +51,26 @@ class ArgoProbeAmsTests(unittest.TestCase):
         with self.assertRaises(SystemExit) as exc:
             run(self.arguments)
         self.assertEqual(exc.exception.code, 3)
+
+    @patch('argo_probe_ams.ams_check.MSG_NUM', 1)
+    @patch('argo_probe_ams.ams_check.ArgoMessagingService')
+    @patch('argo_probe_ams.ams_check.AmsMessage')
+    def test_success_statewrite(self, m_ams, m_ams_msg):
+        import json
+        m_ams = MagicMock()
+        m_ams_msg = MagicMock()
+        with self.assertRaises(SystemExit) as exc:
+            run(self.arguments)
+        self.assertEqual(exc.exception.code, 0)
+        with open(STATE_FILE, 'r') as fp:
+            content = json.loads(fp.read())
+            self.assertDictEqual(content,
+                {
+                    'host': 'mock_host',
+                    'topic': 'mock_topic',
+                    'subscription': 'mock_sensor_sub'
+                }
+            )
 
 
 if __name__ == '__main__':
