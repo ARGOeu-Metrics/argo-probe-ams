@@ -34,6 +34,11 @@ class ArgoProbeAmsTests(unittest.TestCase):
             "subscription": "mock_sensor_sub"
         }
         self.arguments = Mock(**arguments)
+        self.patcher1 = patch('argo_probe_ams.ams_check.STATE_FILE', '/tmp/ams-probe-state.json')
+        self.patcher1.start()
+
+    def tearDown(self):
+        patch.stopall()
 
     @patch('argo_probe_ams.ams_check.record_resource')
     @patch.object(ArgoMessagingService, 'has_topic')
