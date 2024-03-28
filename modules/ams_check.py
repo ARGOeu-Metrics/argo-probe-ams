@@ -15,7 +15,6 @@ STATE_FILE = "/var/spool/argo/argo-probe-ams/state.json"
 
 MSG_NUM = 100
 MSG_SIZE = 500
-msg_orig = set()
 
 
 def gen_rand_str(length=16):
@@ -45,11 +44,33 @@ def record_resource(host, topic, subscription):
         json.dump(res, fp, indent=4)
 
 
+def construct_msgs(MSG_NUM, MSG_SIZE):
+    ams_msg = AmsMessage()
+    msg_array = list()
+    msg_hash = set()
+
+    for i in range(1, MSG_NUM):
+        msg_txt = ''.join(random.choice(
+            string.ascii_letters + string.digits) for i in range(MSG_SIZE))
+        attr_name = ''.join(random.choice(
+            string.ascii_letters + string.digits) for i in range(4))
+        attr_value = ''.join(random.choice(
+            string.ascii_letters + string.digits) for i in range(8))
+
+        msg_array.append(
+            ams_msg(data=msg_txt, attributes={attr_name: attr_value})
+        )
+
+        hash_obj = hashlib.md5((msg_txt + attr_name + attr_value).encode())
+        msg_hash.add(hash_obj.hexdigest())
+
+    return msg_array, msg_hash
+
+
 def run(arguments):
     nagios = NagiosResponse("All messages received correctly.")
     ams = ArgoMessagingService(endpoint=arguments.host, token=arguments.token,
                                project=arguments.project)
-
 
     try:
         record_resource(arguments.host, arguments.topic, arguments.subscription)
@@ -67,41 +88,27 @@ def run(arguments):
         print(nagios.getMsg())
         raise SystemExit(nagios.getCode())
 
-    ams_msg = AmsMessage()
-    msg_array = []
-
     try:
-        for i in range(1, MSG_NUM):
-            msg_txt = ''.join(random.choice(
-                string.ascii_letters + string.digits) for i in range(MSG_SIZE))
-            attr_name = ''.join(random.choice(
-                string.ascii_letters + string.digits) for i in range(4))
-            attr_value = ''.join(random.choice(
-                string.ascii_letters + string.digits) for i in range(8))
-            msg_array.append(
-                ams_msg(data=msg_txt, attributes={attr_name: attr_value}))
-            hash_obj = hashlib.md5((msg_txt + attr_name + attr_value).encode())
-            msg_orig.add(hash_obj.hexdigest())
+        msg_array, msg_hashs = construct_msgs(MSG_NUM, MSG_SIZE)
 
     except (AmsMessageException, TypeError, AttributeError):
         nagios.setCode(nagios.CRITICAL)
         print(nagios.getMsg())
         raise SystemExit(2)
 
-
     try:
-        msgs = ams.publish(arguments.topic, msg_array,
-                           timeout=arguments.timeout)
+        ams.publish(arguments.topic, msg_array, timeout=arguments.timeout)
 
         ackids = []
-        rcv_msg = set()
+        rcv_msg_hashs = set()
 
         for id, msg in ams.pull_sub(arguments.subscription, MSG_NUM - 1, True, timeout=arguments.timeout):
             attr = msg.get_attr()
 
             hash_obj = hashlib.md5((msg.get_data().decode(
-                'utf-8') + list(attr.keys())[0] + list(attr.values())[0]).encode())
-            rcv_msg.add(hash_obj.hexdigest())
+                'utf-8') + list(attr.keys())[0] + list(attr.values())[0]).encode()
+            )
+            rcv_msg_hashs.add(hash_obj.hexdigest())
             ackids.append(id)
 
         if ackids:
@@ -117,10 +124,9 @@ def run(arguments):
         print(nagios.getMsg())
         raise SystemExit(nagios.getCode())
 
-    if msg_orig != rcv_msg:
+    if msg_hashs != rcv_msg_hashs:
         nagios.writeCriticalMessage("Messages received incorrectly.")
         nagios.setCode(nagios.CRITICAL)
-
 
     print(nagios.getMsg())
     raise SystemExit(nagios.getCode())
@@ -147,6 +153,7 @@ def main():
     cmd_options = parser.parse_args()
 
     run(arguments=cmd_options)
+
 
 if __name__ == "__main__":
     main()

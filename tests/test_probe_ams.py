@@ -3,24 +3,9 @@ from unittest.mock import patch
 from unittest.mock import Mock
 from unittest.mock import MagicMock
 
-
 from argo_ams_library import AmsConnectionException, AmsException, AmsMessage, ArgoMessagingService
 from argo_probe_ams.NagiosResponse import NagiosResponse
 from argo_probe_ams.ams_check import run
-from argo_probe_ams.ams_check import record_resource
-from argo_probe_ams.ams_check import create_resources
-from argo_probe_ams.ams_check import STATE_FILE
-
-
-def mock_pull_sub_func(*args, **kwargs):
-    return [('projects/mock_PROJECT/subscriptions/mock_sensor_sub:0', AmsMessage)]
-
-def mock_pass_func(*args, **kwargs):
-    pass
-
-
-def mock_func_ams_message(*args, **kwargs):
-    return AmsMessage(data="mock_data", attributes="mock_attributes")
 
 
 class ArgoProbeAmsTests(unittest.TestCase):
@@ -35,7 +20,7 @@ class ArgoProbeAmsTests(unittest.TestCase):
         }
         self.arguments = Mock(**arguments)
         self.patcher1 = patch('argo_probe_ams.ams_check.STATE_FILE', '/tmp/ams-probe-state.json')
-        self.patcher1.start()
+        self.mock_state_file = self.patcher1.start()
 
     def tearDown(self):
         patch.stopall()
@@ -67,7 +52,7 @@ class ArgoProbeAmsTests(unittest.TestCase):
         with self.assertRaises(SystemExit) as exc:
             run(self.arguments)
         self.assertEqual(exc.exception.code, 0)
-        with open(STATE_FILE, 'r') as fp:
+        with open(self.mock_state_file, 'r') as fp:
             content = json.loads(fp.read())
             self.assertDictEqual(content,
                 {
