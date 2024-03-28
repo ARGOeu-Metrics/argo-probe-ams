@@ -38,10 +38,35 @@ def create_resources(ams, arguments):
     ams.create_sub(subscription, topic, timeout=timeout)
 
 
+def delete_resources(ams, arguments):
+    ams.delete_topic(arguments.topic, timeout=arguments.timeout)
+    ams.delete_sub(arguments.subscription, timeout=arguments.timeout)
+
+
 def record_resource(host, topic, subscription):
     res = dict(host=host, topic=topic, subscription=subscription)
     with open(STATE_FILE, 'w') as fp:
         json.dump(res, fp, indent=4)
+
+
+def pub_pull(ams, arguments, msg_array):
+    ams.publish(arguments.topic, msg_array, timeout=arguments.timeout)
+
+    ackids = []
+    rcv_msg_hashs = set()
+
+    for id, msg in ams.pull_sub(arguments.subscription, MSG_NUM - 1, True, timeout=arguments.timeout):
+        attr = msg.get_attr()
+
+        hash_obj = hashlib.md5((msg.get_data().decode(
+            'utf-8') + list(attr.keys())[0] + list(attr.values())[0]).encode()
+        )
+        rcv_msg_hashs.add(hash_obj.hexdigest())
+        ackids.append(id)
+
+    if ackids:
+        ams.ack_sub(arguments.subscription, ackids,
+                    timeout=arguments.timeout)
 
 
 def construct_msgs(MSG_NUM, MSG_SIZE):
@@ -97,26 +122,8 @@ def run(arguments):
         raise SystemExit(2)
 
     try:
-        ams.publish(arguments.topic, msg_array, timeout=arguments.timeout)
-
-        ackids = []
-        rcv_msg_hashs = set()
-
-        for id, msg in ams.pull_sub(arguments.subscription, MSG_NUM - 1, True, timeout=arguments.timeout):
-            attr = msg.get_attr()
-
-            hash_obj = hashlib.md5((msg.get_data().decode(
-                'utf-8') + list(attr.keys())[0] + list(attr.values())[0]).encode()
-            )
-            rcv_msg_hashs.add(hash_obj.hexdigest())
-            ackids.append(id)
-
-        if ackids:
-            ams.ack_sub(arguments.subscription, ackids,
-                        timeout=arguments.timeout)
-
-        ams.delete_topic(arguments.topic, timeout=arguments.timeout)
-        ams.delete_sub(arguments.subscription, timeout=arguments.timeout)
+        pub_pull(ams, arguments, msg_array)
+        delete_resources(ams, arguments)
 
     except AmsException as e:
         nagios.writeCriticalMessage(e.msg)
@@ -133,7 +140,6 @@ def run(arguments):
 
 
 def main():
-    TIMEOUT = 180
     rand_str = gen_rand_str()
 
     parser = ArgumentParser(description="Nagios sensor for AMS")
@@ -149,7 +155,7 @@ def main():
                         default=f"amsprobe-subscription_{rand_str}",
                         help='Subscription name')
     parser.add_argument('-t', dest='timeout', type=int,
-                        default=TIMEOUT, help='Timeout')
+                        default=180, help='Timeout')
     cmd_options = parser.parse_args()
 
     run(arguments=cmd_options)
