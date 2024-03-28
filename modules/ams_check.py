@@ -55,7 +55,7 @@ def pub_pull(ams, arguments, msg_array):
     ackids = []
     rcv_msg_hashs = set()
 
-    for id, msg in ams.pull_sub(arguments.subscription, MSG_NUM - 1, True, timeout=arguments.timeout):
+    for id, msg in ams.pull_sub(arguments.subscription, MSG_NUM, True, timeout=arguments.timeout):
         attr = msg.get_attr()
 
         hash_obj = hashlib.md5((msg.get_data().decode(
@@ -68,6 +68,8 @@ def pub_pull(ams, arguments, msg_array):
         ams.ack_sub(arguments.subscription, ackids,
                     timeout=arguments.timeout)
 
+    return rcv_msg_hashs
+
 
 def construct_msgs(MSG_NUM, MSG_SIZE):
     ams_msg = AmsMessage()
@@ -78,7 +80,7 @@ def construct_msgs(MSG_NUM, MSG_SIZE):
         msg_txt = ''.join(random.choice(
             string.ascii_letters + string.digits) for i in range(MSG_SIZE))
         attr_name = ''.join(random.choice(
-            string.ascii_letters + string.digits) for i in range(4))
+            string.ascii_letters + string.digits) for i in range(5))
         attr_value = ''.join(random.choice(
             string.ascii_letters + string.digits) for i in range(8))
 
@@ -98,20 +100,23 @@ def run(arguments):
                                project=arguments.project)
 
     try:
-        record_resource(arguments.host, arguments.topic, arguments.subscription)
         create_resources(ams, arguments)
 
     except AmsException as exc:
-        nagios.writeCriticalMessage(exc.msg)
-        nagios.setCode(nagios.CRITICAL)
-        print(nagios.getMsg())
-        raise SystemExit(nagios.getCode())
+        try:
+            record_resource(arguments.host, arguments.topic, arguments.subscription)
 
-    except OSError as exc:
-        nagios.writeUnknownMessage(f"{STATE_FILE} - {repr(exc)}")
-        nagios.setCode(nagios.UNKNOWN)
-        print(nagios.getMsg())
-        raise SystemExit(nagios.getCode())
+        except OSError as exc:
+            nagios.writeUnknownMessage(f"{STATE_FILE} - {repr(exc)}")
+            nagios.setCode(nagios.UNKNOWN)
+            print(nagios.getMsg())
+            raise SystemExit(nagios.getCode())
+
+        else:
+            nagios.writeCriticalMessage(exc.msg)
+            nagios.setCode(nagios.CRITICAL)
+            print(nagios.getMsg())
+            raise SystemExit(nagios.getCode())
 
     try:
         msg_array, msg_hashs = construct_msgs(MSG_NUM, MSG_SIZE)
@@ -119,17 +124,27 @@ def run(arguments):
     except (AmsMessageException, TypeError, AttributeError):
         nagios.setCode(nagios.CRITICAL)
         print(nagios.getMsg())
-        raise SystemExit(2)
+        raise SystemExit(nagios.getCode())
 
     try:
-        pub_pull(ams, arguments, msg_array)
+        rcv_msg_hashs = pub_pull(ams, arguments, msg_array)
         delete_resources(ams, arguments)
 
     except AmsException as e:
-        nagios.writeCriticalMessage(e.msg)
-        nagios.setCode(nagios.CRITICAL)
-        print(nagios.getMsg())
-        raise SystemExit(nagios.getCode())
+        try:
+            record_resource(arguments.host, arguments.topic, arguments.subscription)
+
+        except OSError as exc:
+            nagios.writeUnknownMessage(f"{STATE_FILE} - {repr(exc)}")
+            nagios.setCode(nagios.UNKNOWN)
+            print(nagios.getMsg())
+            raise SystemExit(nagios.getCode())
+
+        else:
+            nagios.writeCriticalMessage(e.msg)
+            nagios.setCode(nagios.CRITICAL)
+            print(nagios.getMsg())
+            raise SystemExit(nagios.getCode())
 
     if msg_hashs != rcv_msg_hashs:
         nagios.writeCriticalMessage("Messages received incorrectly.")

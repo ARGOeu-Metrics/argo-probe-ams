@@ -35,6 +35,22 @@ class ArgoProbeAmsTests(unittest.TestCase):
         self.assertEqual(exc.exception.code, 2)
         m_recordresource.assert_called_with('mock_host', 'mock_topic', 'mock_sensor_sub')
 
+    @patch('argo_probe_ams.ams_check.MSG_NUM', 1)
+    @patch('argo_probe_ams.ams_check.MSG_SIZE', 10)
+    @patch('argo_probe_ams.ams_check.record_resource')
+    @patch('argo_probe_ams.ams_check.create_resources')
+    @patch('argo_probe_ams.ams_check.AmsMessage')
+    @patch('argo_probe_ams.ams_check.ArgoMessagingService')
+    def test_connectionerror_on_pull(self, m_ams, m_ams_msg, m_create_reso, m_record_reso):
+        instance = m_ams.return_value
+        instance.pull_sub = MagicMock()
+        instance.pull_sub.side_effect = [AmsConnectionException("mocked connection error", "mock_pull_sub")]
+        with self.assertRaises(SystemExit) as exc:
+            run(self.arguments)
+        instance.pull_sub.assert_called_with('mock_sensor_sub', 1, True, timeout=3)
+        m_record_reso.assert_called_with('mock_host', 'mock_topic', 'mock_sensor_sub')
+        self.assertEqual(exc.exception.code, 2)
+
     @patch('argo_probe_ams.ams_check.open')
     def test_failed_statewrite(self, m_open):
         m_open.side_effect = PermissionError('mocked perm denied')
@@ -47,8 +63,6 @@ class ArgoProbeAmsTests(unittest.TestCase):
     @patch('argo_probe_ams.ams_check.AmsMessage')
     def test_success_statewrite(self, m_ams, m_ams_msg):
         import json
-        m_ams = MagicMock()
-        m_ams_msg = MagicMock()
         with self.assertRaises(SystemExit) as exc:
             run(self.arguments)
         self.assertEqual(exc.exception.code, 0)
