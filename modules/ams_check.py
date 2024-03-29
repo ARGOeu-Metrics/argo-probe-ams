@@ -4,13 +4,14 @@ import random
 import string
 import hashlib
 import json
+import os
 
 from argparse import ArgumentParser
 from argo_ams_library import ArgoMessagingService, AmsMessage, AmsException, AmsMessageException
 from argo_probe_ams.NagiosResponse import NagiosResponse
 
 
-STATE_FILE = "/var/spool/argo/argo-probe-ams/state.json"
+STATE_FILE = "/var/spool/argo/argo-probe-ams/resources.json"
 
 
 MSG_NUM = 100
@@ -43,10 +44,30 @@ def delete_resources(ams, arguments):
     ams.delete_sub(arguments.subscription, timeout=arguments.timeout)
 
 
-def record_resource(host, topic, subscription):
-    res = dict(host=host, topic=topic, subscription=subscription)
-    with open(STATE_FILE, 'w') as fp:
-        json.dump(res, fp, indent=4)
+def record_resource(arguments):
+    rec = {'topic': arguments.topic, 'subscription': arguments.subscription}
+    host = arguments.host
+    content = ''
+
+    if os.path.exists(STATE_FILE):
+        with open(STATE_FILE, 'r') as fp:
+            content = fp.read()
+
+    if content:
+        content = json.loads(content)
+        if host in content:
+            content[host] = rec
+        else:
+            content.update({
+                host: rec
+            })
+        with open(STATE_FILE, 'w+') as fp:
+            json.dump(content, fp, indent=4)
+    else:
+        with open(STATE_FILE, 'w+') as fp:
+            json.dump({
+                host: rec
+            }, fp, indent=4)
 
 
 def pub_pull(ams, arguments, msg_array):

@@ -1,4 +1,6 @@
 import unittest
+import os
+
 from unittest.mock import patch
 from unittest.mock import Mock
 from unittest.mock import MagicMock
@@ -6,6 +8,7 @@ from unittest.mock import MagicMock
 from argo_ams_library import AmsConnectionException, AmsException, AmsMessage, ArgoMessagingService
 from argo_probe_ams.NagiosResponse import NagiosResponse
 from argo_probe_ams.ams_check import run
+from argo_probe_ams.ams_check import record_resource
 
 
 class ArgoProbeAmsTests(unittest.TestCase):
@@ -19,10 +22,21 @@ class ArgoProbeAmsTests(unittest.TestCase):
             "subscription": "mock_sensor_sub"
         }
         self.arguments = Mock(**arguments)
+        arguments2 = {
+            "host": "mock_host2",
+            "token": "5678",
+            "project": "mock_PROJECT2",
+            "topic": "mock_topic2",
+            "timeout": 3,
+            "subscription": "mock_sensor_sub2"
+        }
+        self.arguments2 = Mock(**arguments2)
         self.patcher1 = patch('argo_probe_ams.ams_check.STATE_FILE', '/tmp/ams-probe-state.json')
         self.mock_state_file = self.patcher1.start()
 
     def tearDown(self):
+        if os.path.exists(self.mock_state_file):
+            os.unlink(self.mock_state_file)
         patch.stopall()
 
     @patch('argo_probe_ams.ams_check.record_resource')
@@ -57,6 +71,37 @@ class ArgoProbeAmsTests(unittest.TestCase):
         with self.assertRaises(SystemExit) as exc:
             run(self.arguments)
         self.assertEqual(exc.exception.code, 3)
+
+    def test_record_resource_multi(self):
+        import json
+        record_resource(self.arguments)
+        with open(self.mock_state_file, 'r') as fp:
+            content = json.loads(fp.read())
+            self.assertDictEqual(
+                content,
+                {
+                    'mock_host': {
+                        'topic': 'mock_topic',
+                        'subscription': 'mock_sensor_sub'
+                    }
+                }
+            )
+        record_resource(self.arguments2)
+        with open(self.mock_state_file, 'r') as fp:
+            content = json.loads(fp.read())
+            self.assertDictEqual(
+                content,
+                {
+                    'mock_host': {
+                        'topic': 'mock_topic',
+                        'subscription': 'mock_sensor_sub'
+                    },
+                    'mock_host2': {
+                        'topic': 'mock_topic2',
+                        'subscription': 'mock_sensor_sub2'
+                    }
+                }
+            )
 
     @patch('argo_probe_ams.ams_check.MSG_NUM', 1)
     @patch('argo_probe_ams.ams_check.ArgoMessagingService')
