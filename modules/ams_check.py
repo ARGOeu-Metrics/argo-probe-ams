@@ -29,12 +29,6 @@ def create_resources(ams, arguments):
     subscription = arguments.subscription
     timeout = arguments.timeout
 
-    if ams.has_topic(topic, timeout=timeout):
-        ams.delete_topic(topic, timeout=timeout)
-
-    if ams.has_sub(subscription, timeout=timeout):
-        ams.delete_sub(subscription, timeout=timeout)
-
     ams.create_topic(topic, timeout=timeout)
     ams.create_sub(subscription, topic, timeout=timeout)
 
@@ -125,7 +119,7 @@ def run(arguments):
 
     except AmsException as exc:
         try:
-            record_resource(arguments.host, arguments.topic, arguments.subscription)
+            record_resource(arguments)
 
         except OSError as exc:
             nagios.writeUnknownMessage(f"{STATE_FILE} - {repr(exc)}")
@@ -153,7 +147,7 @@ def run(arguments):
 
     except AmsException as e:
         try:
-            record_resource(arguments.host, arguments.topic, arguments.subscription)
+            record_resource(arguments)
 
         except OSError as exc:
             nagios.writeUnknownMessage(f"{STATE_FILE} - {repr(exc)}")
