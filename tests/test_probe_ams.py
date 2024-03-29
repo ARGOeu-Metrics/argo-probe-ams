@@ -161,7 +161,7 @@ class ArgoProbeAmsTests(unittest.TestCase):
             run(self.arguments3)
         content['mock_host']['timeout'] = 3
         self.assertEqual(m_delete_reso.mock_calls[0], call(instance, content['mock_host']))
-        self.assertEqual(m_delete_reso.mock_calls[1], call(instance, self.arguments)
+        self.assertEqual(m_delete_reso.mock_calls[1], call(instance, self.arguments))
 
 
 if __name__ == '__main__':
