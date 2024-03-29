@@ -47,7 +47,7 @@ class ArgoProbeAmsTests(unittest.TestCase):
         with self.assertRaises(SystemExit) as exc:
             run(self.arguments)
         self.assertEqual(exc.exception.code, 2)
-        m_recordresource.assert_called_with('mock_host', 'mock_topic', 'mock_sensor_sub')
+        m_recordresource.assert_called_with(self.arguments)
 
     @patch('argo_probe_ams.ams_check.MSG_NUM', 1)
     @patch('argo_probe_ams.ams_check.MSG_SIZE', 10)
@@ -62,7 +62,7 @@ class ArgoProbeAmsTests(unittest.TestCase):
         with self.assertRaises(SystemExit) as exc:
             run(self.arguments)
         instance.pull_sub.assert_called_with('mock_sensor_sub', 1, True, timeout=3)
-        m_record_reso.assert_called_with('mock_host', 'mock_topic', 'mock_sensor_sub')
+        m_record_reso.assert_called_with(self.arguments)
         self.assertEqual(exc.exception.code, 2)
 
     @patch('argo_probe_ams.ams_check.open')
