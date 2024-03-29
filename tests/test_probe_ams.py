@@ -3,12 +3,14 @@ import os
 
 from unittest.mock import patch
 from unittest.mock import Mock
+from unittest.mock import call
 from unittest.mock import MagicMock
 
 from argo_ams_library import AmsConnectionException, AmsException, AmsMessage, ArgoMessagingService
 from argo_probe_ams.NagiosResponse import NagiosResponse
 from argo_probe_ams.ams_check import run
 from argo_probe_ams.ams_check import record_resource
+from argo_probe_ams.ams_check import delete_resources
 
 
 class ArgoProbeAmsTests(unittest.TestCase):
@@ -31,7 +33,16 @@ class ArgoProbeAmsTests(unittest.TestCase):
             "subscription": "mock_sensor_sub2"
         }
         self.arguments2 = Mock(**arguments2)
-        self.patcher1 = patch('argo_probe_ams.ams_check.STATE_FILE', '/tmp/ams-probe-state.json')
+        arguments3 = {
+            "host": "mock_host",
+            "token": "5678",
+            "project": "mock_PROJECT3",
+            "topic": "mock_topic3",
+            "timeout": 3,
+            "subscription": "mock_sensor_sub3"
+        }
+        self.arguments3 = Mock(**arguments3)
+        self.patcher1 = patch('argo_probe_ams.ams_check.STATE_FILE', '/tmp/ams-probe-resources.json')
         self.mock_state_file = self.patcher1.start()
 
     def tearDown(self):
@@ -106,7 +117,7 @@ class ArgoProbeAmsTests(unittest.TestCase):
     @patch('argo_probe_ams.ams_check.MSG_NUM', 1)
     @patch('argo_probe_ams.ams_check.AmsMessage')
     @patch('argo_probe_ams.ams_check.ArgoMessagingService')
-    def test_success_statewrite(self, m_ams, m_ams_msg):
+    def test_success_resource_record(self, m_ams, m_ams_msg):
         import json
         instance = m_ams.return_value
         instance.create_topic.side_effect = [AmsConnectionException("mocked connection error", "mock_create_topic")]
@@ -123,6 +134,34 @@ class ArgoProbeAmsTests(unittest.TestCase):
                     }
                 }
             )
+
+    @patch('argo_probe_ams.ams_check.MSG_NUM', 1)
+    @patch('argo_probe_ams.ams_check.delete_resources')
+    @patch('argo_probe_ams.ams_check.create_resources')
+    @patch('argo_probe_ams.ams_check.AmsMessage')
+    @patch('argo_probe_ams.ams_check.ArgoMessagingService')
+    def test_resource_cleanup(self, m_ams, m_ams_msg, m_create_reso, m_delete_reso):
+        import json
+        instance = m_ams.return_value
+        m_create_reso.side_effect = [AmsConnectionException("mocked connection error", "mock_create_topic"), True]
+        with self.assertRaises(SystemExit) as exc:
+            run(self.arguments)
+        self.assertEqual(exc.exception.code, 2)
+        with open(self.mock_state_file, 'r') as fp:
+            content = json.loads(fp.read())
+            self.assertDictEqual(content,
+                {
+                    'mock_host': {
+                        'topic': 'mock_topic',
+                        'subscription': 'mock_sensor_sub'
+                    }
+                }
+            )
+        with self.assertRaises(SystemExit) as exc:
+            run(self.arguments3)
+        content['mock_host']['timeout'] = 3
+        self.assertEqual(m_delete_reso.mock_calls[0], call(instance, content['mock_host']))
+        self.assertEqual(m_delete_reso.mock_calls[1], call(instance, self.arguments)
 
 
 if __name__ == '__main__':

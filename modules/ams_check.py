@@ -34,8 +34,12 @@ def create_resources(ams, arguments):
 
 
 def delete_resources(ams, arguments):
-    ams.delete_topic(arguments.topic, timeout=arguments.timeout)
-    ams.delete_sub(arguments.subscription, timeout=arguments.timeout)
+    if isinstance(arguments, dict):
+        ams.delete_topic(arguments['topic'], timeout=arguments['timeout'])
+        ams.delete_sub(arguments['subscription'], timeout=arguments['timeout'])
+    else:
+        ams.delete_topic(arguments.topic, timeout=arguments.timeout)
+        ams.delete_sub(arguments.subscription, timeout=arguments.timeout)
 
 
 def record_resource(arguments):
@@ -62,6 +66,27 @@ def record_resource(arguments):
             json.dump({
                 host: rec
             }, fp, indent=4)
+
+
+def check_resource_file(host):
+    content = ''
+    res_host = dict()
+
+    if os.path.exists(STATE_FILE):
+        with open(STATE_FILE, 'r') as fp:
+            content = fp.read()
+
+    if content:
+        content = json.loads(content)
+        if host in content:
+            res_host = content[host]
+            del content[host]
+            with open(STATE_FILE, 'w+') as fp:
+                json.dump(content, fp, indent=4)
+
+            return (True, res_host)
+
+    return (False, None)
 
 
 def pub_pull(ams, arguments, msg_array):
@@ -113,6 +138,11 @@ def run(arguments):
     nagios = NagiosResponse("All messages received correctly.")
     ams = ArgoMessagingService(endpoint=arguments.host, token=arguments.token,
                                project=arguments.project)
+
+    exists, resources = check_resource_file(arguments.host)
+    if exists:
+        resources['timeout'] = arguments.timeout
+        delete_resources(ams, resources)
 
     try:
         create_resources(ams, arguments)
