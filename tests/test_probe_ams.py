@@ -104,20 +104,23 @@ class ArgoProbeAmsTests(unittest.TestCase):
             )
 
     @patch('argo_probe_ams.ams_check.MSG_NUM', 1)
-    @patch('argo_probe_ams.ams_check.ArgoMessagingService')
     @patch('argo_probe_ams.ams_check.AmsMessage')
+    @patch('argo_probe_ams.ams_check.ArgoMessagingService')
     def test_success_statewrite(self, m_ams, m_ams_msg):
         import json
+        instance = m_ams.return_value
+        instance.create_topic.side_effect = [AmsConnectionException("mocked connection error", "mock_create_topic")]
         with self.assertRaises(SystemExit) as exc:
             run(self.arguments)
-        self.assertEqual(exc.exception.code, 0)
+        self.assertEqual(exc.exception.code, 2)
         with open(self.mock_state_file, 'r') as fp:
             content = json.loads(fp.read())
             self.assertDictEqual(content,
                 {
-                    'host': 'mock_host',
-                    'topic': 'mock_topic',
-                    'subscription': 'mock_sensor_sub'
+                    'mock_host': {
+                        'topic': 'mock_topic',
+                        'subscription': 'mock_sensor_sub'
+                    }
                 }
             )
 
