@@ -51,12 +51,12 @@ class ArgoProbeAmsTests(unittest.TestCase):
         patch.stopall()
 
     @patch('argo_probe_ams.check.StateFile')
-    @patch.object(ArgoMessagingService, 'has_topic')
-    def test_connectionerror_on_hastopic(self, m_hastopic, m_statefile):
+    @patch.object(ArgoMessagingService, 'create_topic')
+    def test_connectionerror_on_createtopic(self, m_createtopic, m_statefile):
         instance = m_statefile.return_value
         instance.record = MagicMock()
         instance.check.return_value = (False, None)
-        m_hastopic.side_effect = [AmsConnectionException("mocked connection error", "mock_has_topic")]
+        m_createtopic.side_effect = [AmsConnectionException("mocked connection error", "mock_create_topic")]
 
         with self.assertRaises(SystemExit) as exc:
             run(self.arguments)
