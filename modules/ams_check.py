@@ -4,18 +4,16 @@ import random
 import string
 import hashlib
 import json
-import os
 
 from argparse import ArgumentParser
 from argo_ams_library import ArgoMessagingService, AmsMessage, AmsException, AmsMessageException
+from argo_probe_ams.statefile import StateFile
 from argo_probe_ams.NagiosResponse import NagiosResponse
-
-
-STATE_FILE = "/var/spool/argo/argo-probe-ams/resources.json"
 
 
 MSG_NUM = 100
 MSG_SIZE = 500
+STATE_FILE = "/var/spool/argo/argo-probe-ams/resources.json"
 
 
 def gen_rand_str(length=16):
@@ -40,53 +38,6 @@ def delete_resources(ams, arguments):
     else:
         ams.delete_topic(arguments.topic, timeout=arguments.timeout)
         ams.delete_sub(arguments.subscription, timeout=arguments.timeout)
-
-
-def record_resource(arguments):
-    rec = {'topic': arguments.topic, 'subscription': arguments.subscription}
-    host = arguments.host
-    content = ''
-
-    if os.path.exists(STATE_FILE):
-        with open(STATE_FILE, 'r') as fp:
-            content = fp.read()
-
-    if content:
-        content = json.loads(content)
-        if host in content:
-            content[host] = rec
-        else:
-            content.update({
-                host: rec
-            })
-        with open(STATE_FILE, 'w+') as fp:
-            json.dump(content, fp, indent=4)
-    else:
-        with open(STATE_FILE, 'w+') as fp:
-            json.dump({
-                host: rec
-            }, fp, indent=4)
-
-
-def check_resource_file(host):
-    content = ''
-    res_host = dict()
-
-    if os.path.exists(STATE_FILE):
-        with open(STATE_FILE, 'r') as fp:
-            content = fp.read()
-
-    if content:
-        content = json.loads(content)
-        if host in content:
-            res_host = content[host]
-            del content[host]
-            with open(STATE_FILE, 'w+') as fp:
-                json.dump(content, fp, indent=4)
-
-            return (True, res_host)
-
-    return (False, None)
 
 
 def pub_pull(ams, arguments, msg_array):
@@ -138,8 +89,9 @@ def run(arguments):
     nagios = NagiosResponse("All messages received correctly.")
     ams = ArgoMessagingService(endpoint=arguments.host, token=arguments.token,
                                project=arguments.project)
+    state_file = StateFile(STATE_FILE, arguments.host)
 
-    exists, resources = check_resource_file(arguments.host)
+    exists, resources = state_file.check_resource_file(arguments.host)
     if exists:
         resources['timeout'] = arguments.timeout
         delete_resources(ams, resources)
@@ -149,7 +101,7 @@ def run(arguments):
 
     except AmsException as exc:
         try:
-            record_resource(arguments)
+            state_file.record_resource(arguments)
 
         except OSError as exc:
             nagios.writeUnknownMessage(f"{STATE_FILE} - {repr(exc)}")
@@ -177,7 +129,7 @@ def run(arguments):
 
     except AmsException as e:
         try:
-            record_resource(arguments)
+            state_file.record_resource(arguments)
 
         except OSError as exc:
             nagios.writeUnknownMessage(f"{STATE_FILE} - {repr(exc)}")
