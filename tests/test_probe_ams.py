@@ -64,18 +64,20 @@ class ArgoProbeAmsTests(unittest.TestCase):
 
     @patch('argo_probe_ams.ams_check.MSG_NUM', 1)
     @patch('argo_probe_ams.ams_check.MSG_SIZE', 10)
-    @patch('argo_probe_ams.ams_check.record_resource')
+    @patch('argo_probe_ams.ams_check.StateFile')
     @patch('argo_probe_ams.ams_check.create_resources')
     @patch('argo_probe_ams.ams_check.AmsMessage')
     @patch('argo_probe_ams.ams_check.ArgoMessagingService')
-    def test_connectionerror_on_pull(self, m_ams, m_ams_msg, m_create_reso, m_record_reso):
+    def test_connectionerror_on_pull(self, m_ams, m_ams_msg, m_create_reso, m_statefile):
         instance = m_ams.return_value
+        instance2 = m_statefile.return_value
         instance.pull_sub = MagicMock()
         instance.pull_sub.side_effect = [AmsConnectionException("mocked connection error", "mock_pull_sub")]
+        instance2.check.return_value = (False, None)
         with self.assertRaises(SystemExit) as exc:
             run(self.arguments)
         instance.pull_sub.assert_called_with('mock_sensor_sub', 1, True, timeout=3)
-        m_record_reso.assert_called_with(self.arguments)
+        instance2.record.assert_called_with(self.arguments)
         self.assertEqual(exc.exception.code, 2)
 
     @patch('argo_probe_ams.statefile.open')
