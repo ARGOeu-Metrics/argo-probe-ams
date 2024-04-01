@@ -91,7 +91,7 @@ def run(arguments):
                                project=arguments.project)
     state_file = StateFile(STATE_FILE, arguments.host)
 
-    exists, resources = state_file.check_resource_file(arguments.host)
+    exists, resources = state_file.check(arguments.host)
     if exists:
         resources['timeout'] = arguments.timeout
         delete_resources(ams, resources)
@@ -101,7 +101,7 @@ def run(arguments):
 
     except AmsException as exc:
         try:
-            state_file.record_resource(arguments)
+            state_file.record(arguments)
 
         except OSError as exc:
             nagios.writeUnknownMessage(f"{STATE_FILE} - {repr(exc)}")
@@ -129,7 +129,7 @@ def run(arguments):
 
     except AmsException as e:
         try:
-            state_file.record_resource(arguments)
+            state_file.record(arguments)
 
         except OSError as exc:
             nagios.writeUnknownMessage(f"{STATE_FILE} - {repr(exc)}")

@@ -49,15 +49,18 @@ class ArgoProbeAmsTests(unittest.TestCase):
             os.unlink(self.mock_state_file)
         patch.stopall()
 
-    @patch('argo_probe_ams.ams_check.record_resource')
+    @patch('argo_probe_ams.ams_check.StateFile')
     @patch.object(ArgoMessagingService, 'has_topic')
-    def test_connectionerror_on_hastopic(self, m_hastopic, m_recordresource):
+    def test_connectionerror_on_hastopic(self, m_hastopic, m_statefile):
+        instance = m_statefile.return_value
+        instance.record = MagicMock()
+        instance.check.return_value = (False, None)
         m_hastopic.side_effect = [AmsConnectionException("mocked connection error", "mock_has_topic")]
 
         with self.assertRaises(SystemExit) as exc:
             run(self.arguments)
         self.assertEqual(exc.exception.code, 2)
-        m_recordresource.assert_called_with(self.arguments)
+        instance.record.assert_called_with(self.arguments)
 
     @patch('argo_probe_ams.ams_check.MSG_NUM', 1)
     @patch('argo_probe_ams.ams_check.MSG_SIZE', 10)
@@ -75,7 +78,7 @@ class ArgoProbeAmsTests(unittest.TestCase):
         m_record_reso.assert_called_with(self.arguments)
         self.assertEqual(exc.exception.code, 2)
 
-    @patch('argo_probe_ams.ams_check.open')
+    @patch('argo_probe_ams.statefile.open')
     def test_failed_statewrite(self, m_open):
         m_open.side_effect = PermissionError('mocked perm denied')
         with self.assertRaises(SystemExit) as exc:

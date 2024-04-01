@@ -7,7 +7,7 @@ class StateFile(object):
         self.state_file = state_file
         self.host = host
 
-    def record_resource(self, arguments):
+    def record(self, arguments):
         rec = {'topic': arguments.topic, 'subscription': arguments.subscription}
         host = arguments.host
         content = ''
@@ -32,7 +32,7 @@ class StateFile(object):
                     host: rec
                 }, fp, indent=4)
 
-    def check_resource_file(self, host):
+    def check(self, host):
         content = ''
         res_host = dict()
 
