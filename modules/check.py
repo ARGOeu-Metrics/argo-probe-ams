@@ -1,103 +1,33 @@
 #!/usr/bin/env python3
 
-import random
-import string
-import hashlib
 import json
 
 from argparse import ArgumentParser
-from argo_ams_library import ArgoMessagingService, AmsMessage, AmsException, AmsMessageException
-from argo_probe_ams.statefile import StateFile
-from argo_probe_ams.NagiosResponse import NagiosResponse
 
+from argo_ams_library import AmsException, AmsMessageException
+from argo_probe_ams.NagiosResponse import NagiosResponse
+from argo_probe_ams.amsclient import AmsClient
+from argo_probe_ams.statefile import StateFile
+from argo_probe_ams.utils import construct_msgs
+from argo_probe_ams.utils import gen_rand_str
 
 MSG_NUM = 100
 MSG_SIZE = 500
 STATE_FILE = "/var/spool/argo/argo-probe-ams/resources.json"
 
 
-def gen_rand_str(length=16):
-    characters = string.ascii_lowercase + string.digits
-    random_string = ''.join(random.choices(characters, k=length))
-    return random_string
-
-
-def create_resources(ams, arguments):
-    topic = arguments.topic
-    subscription = arguments.subscription
-    timeout = arguments.timeout
-
-    ams.create_topic(topic, timeout=timeout)
-    ams.create_sub(subscription, topic, timeout=timeout)
-
-
-def delete_resources(ams, arguments):
-    if isinstance(arguments, dict):
-        ams.delete_topic(arguments['topic'], timeout=arguments['timeout'])
-        ams.delete_sub(arguments['subscription'], timeout=arguments['timeout'])
-    else:
-        ams.delete_topic(arguments.topic, timeout=arguments.timeout)
-        ams.delete_sub(arguments.subscription, timeout=arguments.timeout)
-
-
-def pub_pull(ams, arguments, msg_array):
-    ams.publish(arguments.topic, msg_array, timeout=arguments.timeout)
-
-    ackids = []
-    rcv_msg_hashs = set()
-
-    for id, msg in ams.pull_sub(arguments.subscription, MSG_NUM, True, timeout=arguments.timeout):
-        attr = msg.get_attr()
-
-        hash_obj = hashlib.md5((msg.get_data().decode(
-            'utf-8') + list(attr.keys())[0] + list(attr.values())[0]).encode()
-        )
-        rcv_msg_hashs.add(hash_obj.hexdigest())
-        ackids.append(id)
-
-    if ackids:
-        ams.ack_sub(arguments.subscription, ackids,
-                    timeout=arguments.timeout)
-
-    return rcv_msg_hashs
-
-
-def construct_msgs(MSG_NUM, MSG_SIZE):
-    ams_msg = AmsMessage()
-    msg_array = list()
-    msg_hash = set()
-
-    for i in range(1, MSG_NUM):
-        msg_txt = ''.join(random.choice(
-            string.ascii_letters + string.digits) for i in range(MSG_SIZE))
-        attr_name = ''.join(random.choice(
-            string.ascii_letters + string.digits) for i in range(5))
-        attr_value = ''.join(random.choice(
-            string.ascii_letters + string.digits) for i in range(8))
-
-        msg_array.append(
-            ams_msg(data=msg_txt, attributes={attr_name: attr_value})
-        )
-
-        hash_obj = hashlib.md5((msg_txt + attr_name + attr_value).encode())
-        msg_hash.add(hash_obj.hexdigest())
-
-    return msg_array, msg_hash
-
-
 def run(arguments):
     nagios = NagiosResponse("All messages received correctly.")
-    ams = ArgoMessagingService(endpoint=arguments.host, token=arguments.token,
-                               project=arguments.project)
     state_file = StateFile(STATE_FILE, arguments.host)
+    ams_client = AmsClient(arguments, MSG_SIZE, MSG_NUM)
 
     exists, resources = state_file.check(arguments.host)
     if exists:
         resources['timeout'] = arguments.timeout
-        delete_resources(ams, resources)
+        ams_client.delete(resources)
 
     try:
-        create_resources(ams, arguments)
+        ams_client.create(arguments)
 
     except AmsException as exc:
         try:
@@ -124,8 +54,8 @@ def run(arguments):
         raise SystemExit(nagios.getCode())
 
     try:
-        rcv_msg_hashs = pub_pull(ams, arguments, msg_array)
-        delete_resources(ams, arguments)
+        rcv_msg_hashs = ams_client.pub_pull(arguments, msg_array)
+        ams_client.delete(arguments)
 
     except AmsException as e:
         try:
