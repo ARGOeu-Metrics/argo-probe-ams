@@ -177,6 +177,23 @@ class ArgoProbeAmsTests(unittest.TestCase):
             content = json.loads(fp.read())
             self.assertDictEqual(content, {})
 
+    @patch('argo_probe_ams.check.MSG_NUM', 1)
+    @patch('argo_probe_ams.check.StateFile')
+    @patch('argo_probe_ams.check.AmsClient')
+    @patch('argo_probe_ams.amsclient.ArgoMessagingService')
+    def test_resource_failed_cleanup(self, m_ams, m_amsclient, m_statefile):
+        import json
+        instance = m_amsclient.return_value
+        instance2 = m_statefile.return_value
+        instance2.check.return_value = [True, {
+            'topic': 'mock_topic',
+            'subscription': 'mock_subscription'
+        }]
+        instance.delete.side_effect = [AmsConnectionException("mocked connection error", "mock_delete_topic")]
+        with self.assertRaises(SystemExit) as exc:
+            run(self.arguments)
+        self.assertEqual(exc.exception.code, 2)
+
 
 if __name__ == '__main__':
     unittest.main()

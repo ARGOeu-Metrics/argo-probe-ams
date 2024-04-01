@@ -24,9 +24,15 @@ def run(arguments):
     exists, resources = state_file.check(arguments.host)
 
     if exists:
-        resources['timeout'] = arguments.timeout
-        ams_client.delete(resources)
-        state_file.delete(arguments.host)
+        try:
+            resources['timeout'] = arguments.timeout
+            ams_client.delete(resources)
+            state_file.delete(arguments.host)
+        except AmsException as exc:
+            nagios.writeCriticalMessage(exc.msg)
+            nagios.setCode(nagios.CRITICAL)
+            print(nagios.getMsg())
+            raise SystemExit(nagios.getCode())
 
     try:
         ams_client.create(arguments)
