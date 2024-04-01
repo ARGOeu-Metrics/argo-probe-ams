@@ -10,6 +10,7 @@ from argo_ams_library import AmsConnectionException, AmsException, AmsMessage, A
 from argo_probe_ams.NagiosResponse import NagiosResponse
 from argo_probe_ams.check import run
 from argo_probe_ams.amsclient import AmsClient
+from argo_probe_ams.statefile import StateFile
 
 
 class ArgoProbeAmsTests(unittest.TestCase):
@@ -148,12 +149,12 @@ class ArgoProbeAmsTests(unittest.TestCase):
             )
 
     @patch('argo_probe_ams.check.MSG_NUM', 1)
-    @patch.object(AmsClient, 'delete')
-    @patch.object(AmsClient, 'create')
+    @patch('argo_probe_ams.check.AmsClient')
     @patch('argo_probe_ams.amsclient.ArgoMessagingService')
-    def test_resource_cleanup(self, m_ams, m_create, m_delete):
+    def test_resource_cleanup(self, m_ams, m_amsclient):
         import json
-        m_create.side_effect = [AmsConnectionException("mocked connection error", "mock_create_topic"), True]
+        instance = m_amsclient.return_value
+        instance.create.side_effect = [AmsConnectionException("mocked connection error", "mock_create_topic"), True]
         with self.assertRaises(SystemExit) as exc:
             run(self.arguments)
         self.assertEqual(exc.exception.code, 2)
@@ -170,8 +171,11 @@ class ArgoProbeAmsTests(unittest.TestCase):
         with self.assertRaises(SystemExit) as exc:
             run(self.arguments3)
         content['mock_host']['timeout'] = 3
-        self.assertEqual(m_delete.mock_calls[0], call(content['mock_host']))
-        self.assertEqual(m_delete.mock_calls[1], call(self.arguments3))
+        self.assertEqual(instance.delete.mock_calls[0], call(content['mock_host']))
+        self.assertEqual(instance.delete.mock_calls[1], call(self.arguments3))
+        with open(self.mock_state_file, 'r') as fp:
+            content = json.loads(fp.read())
+            self.assertDictEqual(content, {})
 
 
 if __name__ == '__main__':

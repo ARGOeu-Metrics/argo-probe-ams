@@ -44,10 +44,27 @@ class StateFile(object):
             content = json.loads(content)
             if host in content:
                 res_host = content[host]
-                del content[host]
                 with open(self.state_file, 'w+') as fp:
                     json.dump(content, fp, indent=4)
 
                 return (True, res_host)
 
         return (False, None)
+
+    def delete(self, host):
+        content = ''
+
+        if os.path.exists(self.state_file):
+            with open(self.state_file, 'r') as fp:
+                content = fp.read()
+
+        if content:
+            content = json.loads(content)
+            if host in content:
+                del content[host]
+                with open(self.state_file, 'w+') as fp:
+                    json.dump(content, fp, indent=4)
+
+                return True
+
+        return False

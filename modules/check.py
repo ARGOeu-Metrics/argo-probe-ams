@@ -22,9 +22,11 @@ def run(arguments):
     ams_client = AmsClient(arguments, MSG_SIZE, MSG_NUM)
 
     exists, resources = state_file.check(arguments.host)
+
     if exists:
         resources['timeout'] = arguments.timeout
         ams_client.delete(resources)
+        state_file.delete(arguments.host)
 
     try:
         ams_client.create(arguments)
