@@ -21,11 +21,15 @@ class AmsClient(object):
 
     def delete(self, arguments):
         if isinstance(arguments, dict):
-            self.ams.delete_topic(arguments['topic'], timeout=arguments['timeout'])
-            self.ams.delete_sub(arguments['subscription'], timeout=arguments['timeout'])
+            if self.ams.has_topic(arguments['topic'], timeout=arguments['timeout']):
+                self.ams.delete_topic(arguments['topic'], timeout=arguments['timeout'])
+            if self.ams.has_sub(arguments['subscription'], timeout=arguments['timeout']):
+                self.ams.delete_sub(arguments['subscription'], timeout=arguments['timeout'])
         else:
-            self.ams.delete_topic(arguments.topic, timeout=arguments.timeout)
-            self.ams.delete_sub(arguments.subscription, timeout=arguments.timeout)
+            if self.ams.has_topic(arguments.topic, timeout=arguments.timeout):
+                self.ams.delete_topic(arguments.topic, timeout=arguments.timeout)
+            if self.ams.has_sub(arguments.subscription, timeout=arguments.timeout):
+                self.ams.delete_sub(arguments.subscription, timeout=arguments.timeout)
 
     def pub_pull(self, arguments, msg_array):
         self.ams.publish(arguments.topic, msg_array, timeout=arguments.timeout)
