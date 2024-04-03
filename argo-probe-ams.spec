@@ -2,7 +2,7 @@
 
 Name: argo-probe-ams
 Summary: Probes for ARGO AMS.
-Version: 0.1.1
+Version: 0.1.2
 Release: 1%{?dist}
 License: ASL 2.0
 Source0: %{name}-%{version}.tar.gz
@@ -21,6 +21,7 @@ This package includes probes for ARGO AMS component.
 %{py3_build}
 
 %install
+install --directory --mode 755 $RPM_BUILD_ROOT/%{_localstatedir}/spool/argo/argo-probe-ams
 %{py3_install "--record=INSTALLED_FILES" }
 
 %clean
@@ -30,8 +31,11 @@ rm -rf %{buildroot}
 %defattr(-,root,root,-)
 %{python3_sitelib}/argo_probe_ams
 %{dir}
+%{_localstatedir}/spool/argo/argo-probe-ams
 
 
 %changelog
+* Wed Apr  3 2024 Daniel Vrcic <daniel.vrcic@gmail.com> - 0.1.2-1%{dist}
+- refine spec to create spool directory
 * Fri Jun 10 2022 Katarina Zailac <kzailac@gmail.com> - 0.1.0-1%{?dist}
 - AO-650 Harmonize argo-mon probes
