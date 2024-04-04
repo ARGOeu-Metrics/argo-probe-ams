@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.1.2] - 2023-04-04
+
+### Added
+
+* AO-922 Create Rocky 9 rpm for argo-probe-ams
+
 ## [0.1.1] - 2023-02-01
 
 ### Fixed

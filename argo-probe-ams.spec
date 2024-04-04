@@ -2,7 +2,7 @@
 
 Name: argo-probe-ams
 Summary: Probes for ARGO AMS.
-Version: 0.1.1
+Version: 0.1.2
 Release: 1%{?dist}
 License: ASL 2.0
 Source0: %{name}-%{version}.tar.gz
@@ -33,5 +33,7 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Thu Apr 4 2024 Katarina Zailac <kzailac@srce.hr> - 0.1.2-1%{?dist}
+- AO-922 Create Rocky 9 rpm for argo-probe-ams
 * Fri Jun 10 2022 Katarina Zailac <kzailac@gmail.com> - 0.1.0-1%{?dist}
 - AO-650 Harmonize argo-mon probes
