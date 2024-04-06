@@ -23,7 +23,6 @@ pipeline {
 					stages {
 						stage ('Test Centos 7') {
 							steps {
-								cleanWs()
                                 echo 'Executing unit tests @ Centos 7...'
                                 sh '''
                                     cd ${WORKSPACE}/$PROJECT_DIR
@@ -63,7 +62,6 @@ pipeline {
                     stages {
                         stage ('Test Rocky 9') {
                             steps {
-								cleanWs()
                                 echo 'Executing unit tests @ Rocky 9...'
                                 sh '''
                                     cd ${WORKSPACE}/$PROJECT_DIR
