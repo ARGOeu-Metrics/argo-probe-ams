@@ -23,6 +23,7 @@ pipeline {
 					stages {
 						stage ('Test Centos 7') {
 							steps {
+								cleanWs()
                                 echo 'Executing unit tests @ Centos 7...'
                                 sh '''
                                     cd ${WORKSPACE}/$PROJECT_DIR
@@ -43,7 +44,6 @@ pipeline {
                         stage ('Build Centos 7') {
                             steps {
                                 echo 'Building Centos 7 RPM...'
-								cleanWs()
                                 withCredentials(bindings: [sshUserPrivateKey(credentialsId: 'jenkins-rpm-repo', usernameVariable: 'REPOUSER', \
                                                                             keyFileVariable: 'REPOKEY')]) {
                                     sh "/home/jenkins/build-rpm.sh -w ${WORKSPACE} -b ${BRANCH_NAME} -d centos7 -p ${PROJECT_DIR} -s ${REPOKEY}"
@@ -63,6 +63,7 @@ pipeline {
                     stages {
                         stage ('Test Rocky 9') {
                             steps {
+								cleanWs()
                                 echo 'Executing unit tests @ Rocky 9...'
                                 sh '''
                                     cd ${WORKSPACE}/$PROJECT_DIR
@@ -82,7 +83,6 @@ pipeline {
                         stage ('Build Rocky 9') {
                             steps {
                                 echo 'Building Rocky 9 RPM...'
-								cleanWs()
                                 withCredentials(bindings: [sshUserPrivateKey(credentialsId: 'jenkins-rpm-repo', usernameVariable: 'REPOUSER', \
                                                                             keyFileVariable: 'REPOKEY')]) {
                                     sh "/home/jenkins/build-rpm.sh -w ${WORKSPACE} -b ${BRANCH_NAME} -d rocky9 -p ${PROJECT_DIR} -s ${REPOKEY}"
