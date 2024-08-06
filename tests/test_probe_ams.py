@@ -1,162 +1,198 @@
-from types import SimpleNamespace
 import unittest
+import os
+
 from unittest.mock import patch
+from unittest.mock import Mock
+from unittest.mock import call
+from unittest.mock import MagicMock
 
-
-from argo_ams_library import AmsConnectionException, AmsException, AmsMessage
+from argo_ams_library import AmsConnectionException, AmsException, AmsMessage, ArgoMessagingService
 from argo_probe_ams.NagiosResponse import NagiosResponse
-from argo_probe_ams.ams_check import utils
+from argo_probe_ams.check import run
+from argo_probe_ams.amsclient import AmsClient
+from argo_probe_ams.statefile import StateFile
 
-
-def mock_pull_sub_func(*args, **kwargs):
-    return [('projects/mock_PROJECT/subscriptions/mock_sensor_sub:0', AmsMessage)]
-
-def mock_pass_func(*args, **kwargs):
-    pass
-
-
-def mock_func_ams_message(*args, **kwargs):
-    return AmsMessage(data="mock_data", attributes="mock_attributes")
 
 class ArgoProbeAmsTests(unittest.TestCase):
-    def setUp(self) -> None:
-        arguments = {"host": "mock_host", "token": "1234", "project": "mock_PROJECT",
-                     "topic": "mock_topic", "timeout": 3, "subscription": "mock_sensor_sub"}
-        self.arguments = SimpleNamespace(**arguments)
+    def setUp(self):
+        arguments = {
+            "host": "mock_host",
+            "token": "1234",
+            "project": "mock_PROJECT",
+            "topic": "mock_topic",
+            "timeout": 3,
+            "subscription": "mock_sensor_sub"
+        }
+        self.arguments = Mock(**arguments)
+        arguments2 = {
+            "host": "mock_host2",
+            "token": "5678",
+            "project": "mock_PROJECT2",
+            "topic": "mock_topic2",
+            "timeout": 3,
+            "subscription": "mock_sensor_sub2"
+        }
+        self.arguments2 = Mock(**arguments2)
+        arguments3 = {
+            "host": "mock_host",
+            "token": "5678",
+            "project": "mock_PROJECT3",
+            "topic": "mock_topic3",
+            "timeout": 3,
+            "subscription": "mock_sensor_sub3"
+        }
+        self.arguments3 = Mock(**arguments3)
+        self.patcher1 = patch('argo_probe_ams.check.STATE_FILE', '/tmp/ams-probe-resources.json')
+        self.mock_state_file = self.patcher1.start()
 
-    @patch("argo_probe_ams.ams_check.hashlib")
-    @patch("argo_probe_ams.ams_check.ArgoMessagingService.create_sub")
-    @patch("argo_probe_ams.ams_check.ArgoMessagingService.create_topic")
-    @patch("argo_probe_ams.ams_check.ArgoMessagingService.delete_sub")
-    @patch("argo_probe_ams.ams_check.ArgoMessagingService.delete_topic")
-    @patch("argo_probe_ams.ams_check.ArgoMessagingService.ack_sub")
-    @patch("argo_probe_ams.ams_check.AmsMessage.get_data")
-    @patch("argo_probe_ams.ams_check.AmsMessage.get_attr")
-    @patch("argo_probe_ams.ams_check.ArgoMessagingService.pull_sub")
-    @patch("argo_probe_ams.ams_check.ArgoMessagingService.publish")
-    @patch("argo_probe_ams.ams_check.ArgoMessagingService.has_sub")
-    @patch("argo_probe_ams.ams_check.ArgoMessagingService.has_topic")
-    def test_all_passed(self, mock_has_topic, mock_has_sub, mock_publish,
-                        mock_pull_sub, mock_get_attr, mock_get_data,
-                        mock_ack_sub, mock_delete_topic, mock_delete_sub,
-                        mock_create_topic, mock_create_sub, mock_hashlib):
-        mock_has_topic.return_value = False
-        mock_has_sub.return_value = False
-        mock_publish.return_value = {'messageIds': ['0']}
-        mock_pull_sub.side_effect = mock_pull_sub_func
-        mock_get_attr.return_value = {'mock_key': 'mock_value'}
-        mock_get_data.return_value = b'mock_bytes'
-        mock_ack_sub.return_value = True
-        mock_delete_topic.side_effect = mock_pass_func
-        mock_delete_sub.side_effect = mock_pass_func
-        mock_hashlib.return_value = "mock_rand"
+    def tearDown(self):
+        if os.path.exists(self.mock_state_file):
+            os.unlink(self.mock_state_file)
+        patch.stopall()
 
-        with self.assertRaises(SystemExit) as e:
-            utils(self.arguments)
+    @patch('argo_probe_ams.check.StateFile')
+    @patch.object(ArgoMessagingService, 'create_topic')
+    def test_connectionerror_on_createtopic(self, m_createtopic, m_statefile):
+        instance = m_statefile.return_value
+        instance.record = MagicMock()
+        instance.check.return_value = (False, None)
+        m_createtopic.side_effect = [AmsConnectionException("mocked connection error", "mock_create_topic")]
 
-        mock_create_topic.assert_called_once_with(
-            self.arguments.topic, timeout=self.arguments.timeout)
-        mock_create_sub.assert_called_once_with(
-            self.arguments.subscription, self.arguments.topic, timeout=self.arguments.timeout)
+        with self.assertRaises(SystemExit) as exc:
+            run(self.arguments)
+        self.assertEqual(exc.exception.code, 2)
+        instance.record.assert_called_with(self.arguments)
 
-        self.assertEqual(e.exception.code, 0)
+    @patch('argo_probe_ams.check.MSG_NUM', 1)
+    @patch('argo_probe_ams.check.MSG_SIZE', 10)
+    @patch('argo_probe_ams.check.StateFile')
+    @patch('argo_probe_ams.amsclient.ArgoMessagingService')
+    def test_connectionerror_on_pull(self, m_ams, m_statefile):
+        instance = m_ams.return_value
+        instance2 = m_statefile.return_value
+        instance.pull_sub = MagicMock()
+        instance.pull_sub.side_effect = [AmsConnectionException("mocked connection error", "mock_pull_sub")]
+        instance2.check.return_value = (False, None)
+        with self.assertRaises(SystemExit) as exc:
+            run(self.arguments)
+        instance.pull_sub.assert_called_with('mock_sensor_sub', 1, True, timeout=3)
+        instance2.record.assert_called_with(self.arguments)
+        self.assertEqual(exc.exception.code, 2)
 
-    @patch("argo_probe_ams.ams_check.ArgoMessagingService.has_topic")
-    def test_connectionerror_on_hastopic(self, mock_has_topic):
-        mock_has_topic.side_effect = AmsConnectionException(
-            "failed connection", "http_mock_get")
+    @patch('argo_probe_ams.statefile.open')
+    def test_failed_statewrite(self, m_open):
+        m_open.side_effect = PermissionError('mocked perm denied')
+        with self.assertRaises(SystemExit) as exc:
+            run(self.arguments)
+        self.assertEqual(exc.exception.code, 3)
 
-        with self.assertRaises(SystemExit) as e:
-            utils(self.arguments)
+    @patch('argo_probe_ams.check.MSG_NUM', 1)
+    @patch('argo_probe_ams.amsclient.ArgoMessagingService')
+    def test_record_resource_multi(self, m_ams):
+        import json
+        instance = m_ams.return_value
+        instance.create_topic.side_effect = [
+            AmsConnectionException("mocked connection error", "mock_create_topic"),
+            AmsConnectionException("mocked connection error", "mock_create_topic")
+        ]
+        with self.assertRaises(SystemExit) as exc:
+            run(self.arguments)
+        self.assertEqual(exc.exception.code, 2)
+        with open(self.mock_state_file, 'r') as fp:
+            content = json.loads(fp.read())
+            self.assertDictEqual(
+                content,
+                {
+                    'mock_host': {
+                        'topic': 'mock_topic',
+                        'subscription': 'mock_sensor_sub'
+                    }
+                }
+            )
+        with self.assertRaises(SystemExit) as exc:
+            run(self.arguments2)
+        self.assertEqual(exc.exception.code, 2)
+        with open(self.mock_state_file, 'r') as fp:
+            content = json.loads(fp.read())
+            self.assertDictEqual(
+                content,
+                {
+                    'mock_host': {
+                        'topic': 'mock_topic',
+                        'subscription': 'mock_sensor_sub'
+                    },
+                    'mock_host2': {
+                        'topic': 'mock_topic2',
+                        'subscription': 'mock_sensor_sub2'
+                    }
+                }
+            )
 
-        mock_has_topic.assert_called_once()
-        self.assertEqual(e.exception.code, 2)
+    @patch('argo_probe_ams.check.MSG_NUM', 1)
+    @patch('argo_probe_ams.amsclient.ArgoMessagingService')
+    def test_success_resource_record(self, m_ams):
+        import json
+        instance = m_ams.return_value
+        instance.create_topic.side_effect = [AmsConnectionException("mocked connection error", "mock_create_topic")]
+        with self.assertRaises(SystemExit) as exc:
+            run(self.arguments)
+        self.assertEqual(exc.exception.code, 2)
+        with open(self.mock_state_file, 'r') as fp:
+            content = json.loads(fp.read())
+            self.assertDictEqual(content,
+                {
+                    'mock_host': {
+                        'topic': 'mock_topic',
+                        'subscription': 'mock_sensor_sub'
+                    }
+                }
+            )
 
-    @patch("argo_probe_ams.ams_check.ArgoMessagingService.delete_sub")
-    @patch("argo_probe_ams.ams_check.ArgoMessagingService.delete_topic")
-    @patch("argo_probe_ams.ams_check.ArgoMessagingService.create_sub")
-    @patch("argo_probe_ams.ams_check.ArgoMessagingService.create_topic")
-    @patch("argo_probe_ams.ams_check.ArgoMessagingService.ack_sub")
-    @patch("argo_probe_ams.ams_check.ArgoMessagingService.publish")
-    @patch("argo_probe_ams.ams_check.ArgoMessagingService.has_sub")
-    @patch("argo_probe_ams.ams_check.ArgoMessagingService.has_topic")
-    def test_connectionerror_on_amspublish(self, mock_has_topic, mock_has_sub,
-                                           mock_publish, mock_ack_sub,
-                                           mock_create_topic,
-                                           mock_create_sub,
-                                           mock_delete_topic,
-                                           mock_delete_sub):
-        mock_has_topic.return_value = False
-        mock_has_sub.return_value = False
-        mock_publish.return_value = False
+    @patch('argo_probe_ams.check.MSG_NUM', 1)
+    @patch('argo_probe_ams.check.AmsClient')
+    @patch('argo_probe_ams.amsclient.ArgoMessagingService')
+    def test_resource_cleanup(self, m_ams, m_amsclient):
+        import json
+        instance = m_amsclient.return_value
+        instance.create.side_effect = [AmsConnectionException("mocked connection error", "mock_create_topic"), True]
+        with self.assertRaises(SystemExit) as exc:
+            run(self.arguments)
+        self.assertEqual(exc.exception.code, 2)
+        with open(self.mock_state_file, 'r') as fp:
+            content = json.loads(fp.read())
+            self.assertDictEqual(content,
+                {
+                    'mock_host': {
+                        'topic': 'mock_topic',
+                        'subscription': 'mock_sensor_sub'
+                    }
+                }
+            )
+        with self.assertRaises(SystemExit) as exc:
+            run(self.arguments3)
+        content['mock_host']['timeout'] = 3
+        self.assertEqual(instance.delete.mock_calls[0], call(content['mock_host']))
+        self.assertEqual(instance.delete.mock_calls[1], call(self.arguments3))
+        with open(self.mock_state_file, 'r') as fp:
+            content = json.loads(fp.read())
+            self.assertDictEqual(content, {})
 
-        with self.assertRaises(SystemExit) as e:
-            utils(self.arguments)
-
-        mock_create_topic.assert_called_once_with(
-            self.arguments.topic, timeout=self.arguments.timeout)
-        mock_create_sub.assert_called_once_with(
-            self.arguments.subscription, self.arguments.topic, timeout=self.arguments.timeout)
-
-        self.assertFalse(mock_ack_sub.called)
-        self.assertFalse(mock_delete_topic.called)
-        self.assertFalse(mock_delete_sub.called)
-
-        self.assertEqual(e.exception.code, 2)
-
-    @patch("argo_probe_ams.ams_check.ArgoMessagingService.create_sub")
-    @patch("argo_probe_ams.ams_check.ArgoMessagingService.create_topic")
-    @patch("argo_probe_ams.ams_check.AmsMessage")
-    @patch("argo_probe_ams.ams_check.ArgoMessagingService.has_sub")
-    @patch("argo_probe_ams.ams_check.ArgoMessagingService.has_topic")
-    def test_connectionerror_on_amsmessage(self, mock_has_topic, mock_has_sub, mock_ams_msg,
-                                           mock_create_topic,
-                                           mock_create_sub):
-
-        mock_has_topic.return_value = False
-        mock_has_sub.return_value = False
-        mock_ams_msg.return_value = "mock_ams_msg"
-
-        with self.assertRaises(SystemExit) as e:
-            utils(self.arguments)
-
-        mock_create_topic.assert_called_once_with(
-            self.arguments.topic, timeout=self.arguments.timeout)
-        mock_create_sub.assert_called_once_with(
-            self.arguments.subscription, self.arguments.topic, timeout=self.arguments.timeout)
-
-        self.assertEqual(e.exception.code, 2)
-
-    @patch("argo_probe_ams.ams_check.msg_orig")
-    @patch("argo_probe_ams.ams_check.random.choice")
-    @patch("argo_probe_ams.ams_check.MSG_NUM", 2)
-    @patch("argo_probe_ams.ams_check.MSG_SIZE", 3)
-    @patch("argo_probe_ams.ams_check.ArgoMessagingService.create_sub")
-    @patch("argo_probe_ams.ams_check.ArgoMessagingService.create_topic")
-    @patch("argo_probe_ams.ams_check.AmsMessage")
-    @patch("argo_probe_ams.ams_check.ArgoMessagingService.has_sub")
-    @patch("argo_probe_ams.ams_check.ArgoMessagingService.has_topic")
-    def test_expected_hashlibmd5_and_connectionerror(self, mock_has_topic, mock_has_sub,
-                                                     mock_ams_msg, mock_create_topic,
-                                                     mock_create_sub,
-                                                     mock_random_choice, mock_msg_orig):
-
-        mock_has_topic.return_value = False
-        mock_has_sub.return_value = False
-        mock_ams_msg.side_effect = mock_func_ams_message
-        mock_random_choice.return_value = "mock_rand"
-
-        with self.assertRaises(SystemExit) as e:
-            utils(self.arguments)
-
-        mock_create_topic.assert_called_once_with(
-            self.arguments.topic, timeout=self.arguments.timeout)
-        mock_create_sub.assert_called_once_with(
-            self.arguments.subscription, self.arguments.topic, timeout=self.arguments.timeout)
-
-        expected = "e1afc18e33d67cc202bb6056c28013ee"
-        mock_msg_orig.add.assert_called_once_with(expected)
-        self.assertEqual(e.exception.code, 2)
+    @patch('argo_probe_ams.check.MSG_NUM', 1)
+    @patch('argo_probe_ams.check.StateFile')
+    @patch('argo_probe_ams.check.AmsClient')
+    @patch('argo_probe_ams.amsclient.ArgoMessagingService')
+    def test_resource_failed_cleanup(self, m_ams, m_amsclient, m_statefile):
+        import json
+        instance = m_amsclient.return_value
+        instance2 = m_statefile.return_value
+        instance2.check.return_value = [True, {
+            'topic': 'mock_topic',
+            'subscription': 'mock_subscription'
+        }]
+        instance.delete.side_effect = [AmsConnectionException("mocked connection error", "mock_delete_topic")]
+        with self.assertRaises(SystemExit) as exc:
+            run(self.arguments)
+        self.assertEqual(exc.exception.code, 2)
 
 
 if __name__ == '__main__':
