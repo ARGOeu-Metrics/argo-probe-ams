@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
 
-import json
-
 from argparse import ArgumentParser
 
 from argo_ams_library import AmsException, AmsMessageException
