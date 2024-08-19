@@ -1,2 +1,7 @@
 __pycache__/
 .coverage
+lint/
+.lvimrc
+junit.xml
+MANIFEST
+*.tar.gz
