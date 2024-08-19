@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.1.2] - 2024-08-19
+
+### Added
+
+* ARGO-4447 ams-sensor should cleanup resources previously created in case of service outages
+* AO-922 Create Rocky 9 rpm for argo-probe-ams
+
+### Changed
+
+* ARGO-4447 Argo-probe-ams fails to delete topic/subscription
+
 ## [0.1.1] - 2023-02-01
 
 ### Fixed
