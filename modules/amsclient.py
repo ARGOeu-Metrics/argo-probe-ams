@@ -1,6 +1,6 @@
 import hashlib
 
-from argo_ams_library import ArgoMessagingService
+from argo_ams_library import AmsMessageException, ArgoMessagingService
 
 
 class AmsClient(object):
@@ -40,6 +40,16 @@ class AmsClient(object):
         for id, msg in self.ams.pull_sub(arguments.subscription, self.MSG_NUM,
                                          True, timeout=arguments.timeout):
             attr = msg.get_attr()
+            # AMS server injects an `x_sender_id` attribute into every
+            # message; pop it (so the hash only reflects the attribute
+            # that the probe originally published) and verify it is
+            # actually set to a non-empty value.
+            sender_id = attr.pop("x_sender_id", None)
+            if not sender_id:
+                raise AmsMessageException(
+                    "Received message with missing or empty "
+                    "`x_sender_id` attribute set by the AMS server."
+                )
 
             hash_obj = hashlib.md5((msg.get_data().decode(
                 'utf-8') + list(attr.keys())[0] + list(attr.values())[0]).encode()
