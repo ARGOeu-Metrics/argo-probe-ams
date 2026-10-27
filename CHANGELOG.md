@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.1.3] - 2026-10-27
+
+### Changed
+
+* AM-416 handling of message attribute x_sender_id
+
 ## [0.1.2] - 2024-08-19
 
 ### Added

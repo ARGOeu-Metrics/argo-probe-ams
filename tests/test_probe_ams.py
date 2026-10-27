@@ -1,16 +1,20 @@
 import unittest
 import os
+import hashlib
 
 from unittest.mock import patch
 from unittest.mock import Mock
 from unittest.mock import call
 from unittest.mock import MagicMock
 
-from argo_ams_library import AmsConnectionException, AmsException, AmsMessage, ArgoMessagingService
-from argo_probe_ams.NagiosResponse import NagiosResponse
+from argo_ams_library import (
+    AmsConnectionException,
+    AmsException,
+    AmsMessageException,
+    ArgoMessagingService,
+)
 from argo_probe_ams.check import run
 from argo_probe_ams.amsclient import AmsClient
-from argo_probe_ams.statefile import StateFile
 
 
 class ArgoProbeAmsTests(unittest.TestCase):
@@ -193,6 +197,83 @@ class ArgoProbeAmsTests(unittest.TestCase):
         with self.assertRaises(SystemExit) as exc:
             run(self.arguments)
         self.assertEqual(exc.exception.code, 2)
+
+    # ------------------------------------------------------------------
+    # x_sender_id handling in AmsClient.pub_pull
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _make_pulled_msg(data, attributes):
+        """Build a Mock that mimics the AmsMessage interface used by pub_pull."""
+        msg = Mock()
+        msg.get_data.return_value = data.encode() if isinstance(data, str) else data
+        # Return the same dict on every call so pub_pull's `pop` mutates it.
+        msg.get_attr.return_value = dict(attributes)
+        return msg
+
+    @patch('argo_probe_ams.amsclient.ArgoMessagingService')
+    def test_pub_pull_strips_x_sender_id_from_hash(self, m_ams):
+        """When the server stamps a non-empty `x_sender_id` on every message,
+        pub_pull must strip it before hashing so the returned hashes match
+        the publisher-side ones (which never include x_sender_id)."""
+        ams_instance = m_ams.return_value
+        pulled = [
+            ("ackid-1", self._make_pulled_msg(
+                "payload-1", {"attrA": "valA", "x_sender_id": "sender-1"})),
+            ("ackid-2", self._make_pulled_msg(
+                "payload-2", {"attrB": "valB", "x_sender_id": "sender-2"})),
+        ]
+        ams_instance.pull_sub.return_value = iter(pulled)
+
+        client = AmsClient(self.arguments, MSG_SIZE=10, MSG_NUM=2)
+        hashes = client.pub_pull(self.arguments, msg_array=["m1", "m2"])
+
+        expected = {
+            hashlib.md5("payload-1attrAvalA".encode()).hexdigest(),
+            hashlib.md5("payload-2attrBvalB".encode()).hexdigest(),
+        }
+        self.assertEqual(hashes, expected)
+        ams_instance.publish.assert_called_once_with(
+            'mock_topic', ["m1", "m2"], timeout=3)
+        ams_instance.pull_sub.assert_called_once_with(
+            'mock_sensor_sub', 2, True, timeout=3)
+        ams_instance.ack_sub.assert_called_once_with(
+            'mock_sensor_sub', ["ackid-1", "ackid-2"], timeout=3)
+
+    @patch('argo_probe_ams.amsclient.ArgoMessagingService')
+    def test_pub_pull_missing_x_sender_id_raises(self, m_ams):
+        """A pulled message without `x_sender_id` must raise AmsMessageException."""
+        ams_instance = m_ams.return_value
+        ams_instance.pull_sub.return_value = iter([
+            ("ackid-1", self._make_pulled_msg(
+                "payload-1", {"attrA": "valA"})),  # no x_sender_id
+        ])
+
+        client = AmsClient(self.arguments, MSG_SIZE=10, MSG_NUM=1)
+        with self.assertRaises(AmsMessageException) as ctx:
+            client.pub_pull(self.arguments, msg_array=["m1"])
+
+        self.assertIn("x_sender_id", ctx.exception.msg)
+        # AmsMessageException is a subclass of AmsException, so the
+        # existing error handling path in check.run() catches it.
+        self.assertIsInstance(ctx.exception, AmsException)
+        ams_instance.ack_sub.assert_not_called()
+
+    @patch('argo_probe_ams.amsclient.ArgoMessagingService')
+    def test_pub_pull_empty_x_sender_id_raises(self, m_ams):
+        """A pulled message whose `x_sender_id` is an empty string must also fail."""
+        ams_instance = m_ams.return_value
+        ams_instance.pull_sub.return_value = iter([
+            ("ackid-1", self._make_pulled_msg(
+                "payload-1", {"attrA": "valA", "x_sender_id": ""})),
+        ])
+
+        client = AmsClient(self.arguments, MSG_SIZE=10, MSG_NUM=1)
+        with self.assertRaises(AmsMessageException) as ctx:
+            client.pub_pull(self.arguments, msg_array=["m1"])
+
+        self.assertIn("x_sender_id", ctx.exception.msg)
+        ams_instance.ack_sub.assert_not_called()
 
 
 if __name__ == '__main__':
